@@ -11,3 +11,33 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+
+model Tickets {
+  id  Int @id @default(autoincrement())
+  ticket_id String @unique  // String cuz TKT-0001
+  customer_name String 
+  customer_email String
+  Subject String
+  description String
+  status Status @default(OPEN)
+  created_At DateTime @default(now())
+  updated_At DateTime @updatedAt
+
+  notes Notes[] // Ticket can have multiple notes
+}
+
+model Notes {
+  id Int @id @default(autoincrement())
+  ticket_id Int
+  notes_text String
+  created_At DateTime
+
+  tickets Tickets @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+}
+
+enum Status {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
