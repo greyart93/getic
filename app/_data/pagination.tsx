@@ -26,7 +26,7 @@ export function DataTablePagination<TData extends RowData>({
 }: DataTablePaginationProps<TData>) {
   return (
     <div className="flex items-center justify-between p-1">
-      <div className="flex-1 text-sm text-muted-foreground">
+      <div className="flex-1 text-sm text-muted-foreground hidden sm:block scrollbar-thin scrollbar-thumb-rounded">
         {table.getFilteredSelectedRowModel().rows.length} of{" "}
         {table.getFilteredRowModel().rows.length} row(s) selected.
       </div>

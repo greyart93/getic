@@ -1,37 +1,100 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useState, useMemo } from "react" 
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useState, useMemo } from "react"
 import { tickets as initialTickets, type Ticket } from "@/app/_data/tempdata"
 import { DataTable } from "@/app/_data/data-table"
 import { columns } from "@/app/_data/columns"
+import { Input } from "@/components/ui/input"
+import { TicketFormDialog } from "@/components/ticket-form-dialog"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog" // 👈 Import new component
+import { Search } from "lucide-react"
 
 export default function Main() {
     const [activeTab, setActiveTab] = useState("all")
     const [tickets, setTickets] = useState<Ticket[]>(initialTickets)
+    const [globalSearch, setGlobalSearch] = useState<string>("")
 
+    // States for Delete (shared for single and bulk)
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+    const [ticketToDelete, setTicketToDelete] = useState<number | null>(null)
+    const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([])
+
+    // States for Edit
+    const [editDialogOpen, setEditDialogOpen] = useState(false)
+    const [ticketToEdit, setTicketToEdit] = useState<Ticket | null>(null)
+
+    // 1. CHANGE STATUS
     const handleStatusChange = (id: number, newStatus: "OPEN" | "IN PROGRESS" | "CLOSED") => {
-        setTickets(prevTickets => 
-            prevTickets.map(ticket => 
+        setTickets(prev => 
+            prev.map(ticket => 
                 ticket.id === id ? { ...ticket, status: newStatus } : ticket
             )
         )
     }
 
-    // 👇 DYNAMICALLY CALCULATE NUMBERS BASED ON THE CURRENT TICKETS STATE
+    // 2. OPEN SINGLE DELETE DIALOG
+    const handleDeleteRequest = (id: number) => {
+        setTicketToDelete(id)
+        setBulkDeleteIds([]) // Clear bulk IDs
+        setDeleteDialogOpen(true)
+    }
+
+    // 3. OPEN BULK DELETE DIALOG
+    const handleBulkDeleteRequest = (ids: number[]) => {
+        setBulkDeleteIds(ids)
+        setTicketToDelete(null) // Clear single ID
+        setDeleteDialogOpen(true)
+    }
+
+    // 4. CONFIRM DELETION (Handles both single and bulk)
+    const confirmDelete = () => {
+        if (ticketToDelete !== null) {
+            // Single delete
+            setTickets(prev => prev.filter(ticket => ticket.id !== ticketToDelete))
+        } else if (bulkDeleteIds.length > 0) {
+            // Bulk delete
+            setTickets(prev => prev.filter(ticket => !bulkDeleteIds.includes(ticket.id)))
+        }
+        setDeleteDialogOpen(false)
+        setTicketToDelete(null)
+        setBulkDeleteIds([])
+    }
+
+    // 5. OPEN EDIT DIALOG
+    const handleEditRequest = (ticket: Ticket) => {
+        setTicketToEdit(ticket)
+        setEditDialogOpen(true)
+    }
+
+    // 6. HANDLE EDIT SAVE
+    const handleEditSave = (data: { subject: string; customer_name: string; customer_email: string }) => {
+        if (ticketToEdit) {
+            setTickets(prev => 
+                prev.map(t => 
+                    t.id === ticketToEdit.id 
+                        ? { ...t, ...data }
+                        : t
+                )
+            )
+            setEditDialogOpen(false)
+            setTicketToEdit(null)
+        }
+    }
+
+    // Live Summary Cards
     const cardData = useMemo(() => {
         const total = tickets.length;
         const open = tickets.filter(t => t.status === 'OPEN').length;
         const inProgress = tickets.filter(t => t.status === 'IN PROGRESS').length;
         const closed = tickets.filter(t => t.status === 'CLOSED').length;
-
         return [
             { title: "Total Tickets", num: total },
             { title: "Open", num: open },
             { title: 'In Progress', num: inProgress },
             { title: 'Closed', num: closed }
         ];
-    }, [tickets]); // 👈 Recalculates whenever 'tickets' changes
+    }, [tickets]);
 
     return (
         <main>
@@ -42,8 +105,8 @@ export default function Main() {
                 ))}
             </div>
 
-            {/* Tabs */}
-            <div className="mt-10">
+            {/* Tabs + Search */}
+            <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <Tabs defaultValue="all" onValueChange={setActiveTab}>
                     <TabsList variant={"pill"} className='py-5 px-1.5'>
                         <TabsTrigger value="all" className='p-4'>All</TabsTrigger>
@@ -52,6 +115,17 @@ export default function Main() {
                         <TabsTrigger value="closed" className='p-4'>Closed</TabsTrigger>
                     </TabsList>
                 </Tabs>
+                <div className="w-full sm:w-auto">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by ID, Subject, Customer..."
+                            value={globalSearch}
+                            onChange={(event) => setGlobalSearch(event.target.value)}
+                            className="h-10 bg-background w-full sm:w-[300px] pl-9"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Data Table */}
@@ -60,9 +134,29 @@ export default function Main() {
                     columns={columns} 
                     data={tickets} 
                     filterStatus={activeTab} 
+                    globalSearch={globalSearch}
                     onStatusChange={handleStatusChange}
+                    onDeleteTicket={handleDeleteRequest}
+                    onEditTicket={handleEditRequest} 
+                    onBulkDelete={handleBulkDeleteRequest} // 👈 Pass the bulk handler
                 />
             </div>
+
+            {/* 👇 REUSABLE DELETE CONFIRMATION DIALOG */}
+            <DeleteConfirmDialog 
+                open={deleteDialogOpen} 
+                onOpenChange={setDeleteDialogOpen} 
+                onConfirm={confirmDelete}
+                itemCount={bulkDeleteIds.length > 0 ? bulkDeleteIds.length : (ticketToDelete ? 1 : 0)}
+            />
+
+            {/* 👇 REUSABLE EDIT DIALOG */}
+            <TicketFormDialog 
+                open={editDialogOpen} 
+                onOpenChange={setEditDialogOpen} 
+                initialData={ticketToEdit} 
+                onSave={handleEditSave}
+            />
         </main>
     )
 }
