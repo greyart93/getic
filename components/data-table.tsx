@@ -8,12 +8,12 @@ async function getData(): Promise<Ticket[]> {
   return tickets
 }
 
-export default async function DemoPage() {
+export default async function DemoPage({ filterStatus = "all" }: { filterStatus?: string }) {
   const data = await getData()
 
   return (
     <div className="container mx-auto py-10">
-      <DataTable columns={columns} data={data} />
+      <DataTable columns={columns} data={data} filterStatus={filterStatus}/>
     </div>
   )
 }
