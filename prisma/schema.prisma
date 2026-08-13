@@ -5,7 +5,7 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  output   = "../app/generated/prisma"
 }
 
 datasource db {
@@ -13,27 +13,27 @@ datasource db {
 }
 
 
-model Tickets {
-  id  Int @id @default(autoincrement())
-  ticket_id String @unique  // String cuz TKT-0001
-  customer_name String 
-  customer_email String
-  Subject String
-  description String
-  status Status @default(OPEN)
-  created_At DateTime @default(now())
-  updated_At DateTime @updatedAt
+model Ticket {
+  id            Int      @id @default(autoincrement())
+  ticketId      String   @unique @default("")
+  customerName  String
+  customerEmail String
+  subject       String
+  description   String
+  status        Status   @default(OPEN)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  notes Notes[] // Ticket can have multiple notes
+  notes Note[]
 }
 
-model Notes {
-  id Int @id @default(autoincrement())
-  ticket_id Int
-  notes_text String
-  created_At DateTime
+model Note {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  notesText String
+  createdAt DateTime @default(now())
 
-  tickets Tickets @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
 enum Status {

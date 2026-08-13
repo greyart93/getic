@@ -1,18 +1,34 @@
 "use client"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useState, useMemo } from "react"
-import { tickets as initialTickets, type Ticket } from "@/app/_data/tempdata"
+import { useState, useMemo, useEffect } from "react" // 👈 Added useEffect
 import { DataTable } from "@/app/_data/data-table"
 import { columns } from "@/app/_data/columns"
 import { Input } from "@/components/ui/input"
 import { TicketFormDialog } from "@/components/ticket-form-dialog"
-import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog" // 👈 Import new component
-import { Search } from "lucide-react"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
+import { Search } from "lucide-react";
+import { useTicketStore } from "@/lib/store"; // 👈 Import store
+import type { Ticket } from "@/app/_data/tempdata";
 
 export default function Main() {
+    // 👇 1. GET STATE AND ACTIONS FROM ZUSTAND
+    const { 
+        tickets, 
+        isLoading, 
+        fetchTickets, 
+        updateStatus, 
+        deleteTicket, 
+        deleteBulkTickets, 
+        updateTicket 
+    } = useTicketStore()
+
+    // 👇 2. FETCH DATA FROM DB ON FIRST LOAD
+    useEffect(() => {
+        fetchTickets()
+    }, [])
+
     const [activeTab, setActiveTab] = useState("all")
-    const [tickets, setTickets] = useState<Ticket[]>(initialTickets)
     const [globalSearch, setGlobalSearch] = useState<string>("")
 
     // States for Delete (shared for single and bulk)
@@ -24,37 +40,31 @@ export default function Main() {
     const [editDialogOpen, setEditDialogOpen] = useState(false)
     const [ticketToEdit, setTicketToEdit] = useState<Ticket | null>(null)
 
-    // 1. CHANGE STATUS
+    // 1. CHANGE STATUS (Uses Zustand)
     const handleStatusChange = (id: number, newStatus: "OPEN" | "IN PROGRESS" | "CLOSED") => {
-        setTickets(prev => 
-            prev.map(ticket => 
-                ticket.id === id ? { ...ticket, status: newStatus } : ticket
-            )
-        )
+        updateStatus(id, newStatus)
     }
 
     // 2. OPEN SINGLE DELETE DIALOG
     const handleDeleteRequest = (id: number) => {
         setTicketToDelete(id)
-        setBulkDeleteIds([]) // Clear bulk IDs
+        setBulkDeleteIds([])
         setDeleteDialogOpen(true)
     }
 
     // 3. OPEN BULK DELETE DIALOG
     const handleBulkDeleteRequest = (ids: number[]) => {
         setBulkDeleteIds(ids)
-        setTicketToDelete(null) // Clear single ID
+        setTicketToDelete(null)
         setDeleteDialogOpen(true)
     }
 
-    // 4. CONFIRM DELETION (Handles both single and bulk)
+    // 4. CONFIRM DELETION (Uses Zustand)
     const confirmDelete = () => {
         if (ticketToDelete !== null) {
-            // Single delete
-            setTickets(prev => prev.filter(ticket => ticket.id !== ticketToDelete))
+            deleteTicket(ticketToDelete) // Single delete
         } else if (bulkDeleteIds.length > 0) {
-            // Bulk delete
-            setTickets(prev => prev.filter(ticket => !bulkDeleteIds.includes(ticket.id)))
+            deleteBulkTickets(bulkDeleteIds) // Bulk delete
         }
         setDeleteDialogOpen(false)
         setTicketToDelete(null)
@@ -67,26 +77,20 @@ export default function Main() {
         setEditDialogOpen(true)
     }
 
-    // 6. HANDLE EDIT SAVE
-    const handleEditSave = (data: { subject: string; customer_name: string; customer_email: string }) => {
+    // 6. HANDLE EDIT SAVE (Uses Zustand)
+    const handleEditSave = (data: { subject: string; customerName: string; customerEmail: string }) => {
         if (ticketToEdit) {
-            setTickets(prev => 
-                prev.map(t => 
-                    t.id === ticketToEdit.id 
-                        ? { ...t, ...data }
-                        : t
-                )
-            )
+            updateTicket(ticketToEdit.id, data)
             setEditDialogOpen(false)
             setTicketToEdit(null)
         }
     }
 
-    // Live Summary Cards
+    // Live Summary Cards (Uses Zustand tickets array)
     const cardData = useMemo(() => {
         const total = tickets.length;
         const open = tickets.filter(t => t.status === 'OPEN').length;
-        const inProgress = tickets.filter(t => t.status === 'IN PROGRESS').length;
+        const inProgress = tickets.filter(t => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length;
         const closed = tickets.filter(t => t.status === 'CLOSED').length;
         return [
             { title: "Total Tickets", num: total },
@@ -122,7 +126,7 @@ export default function Main() {
                             placeholder="Search by ID, Subject, Customer..."
                             value={globalSearch}
                             onChange={(event) => setGlobalSearch(event.target.value)}
-                            className="h-10 bg-background w-full sm:w-[300px] pl-9"
+                            className="h-10 bg-background w-full sm:w-75 pl-9"
                         />
                     </div>
                 </div>
@@ -130,16 +134,39 @@ export default function Main() {
 
             {/* Data Table */}
             <div className="w-[90vw] sm:w-full mt-4">
-                <DataTable 
-                    columns={columns} 
-                    data={tickets} 
-                    filterStatus={activeTab} 
-                    globalSearch={globalSearch}
-                    onStatusChange={handleStatusChange}
-                    onDeleteTicket={handleDeleteRequest}
-                    onEditTicket={handleEditRequest} 
-                    onBulkDelete={handleBulkDeleteRequest} // 👈 Pass the bulk handler
-                />
+                {isLoading ? (
+                    <div className="rounded-md border overflow-hidden">
+                        {/* Skeleton header */}
+                        <div className="bg-gray-200 dark:bg-[#0f0f11] px-4 py-3 flex gap-6 border-b">
+                            {[80, 120, 160, 100, 90, 40].map((w, i) => (
+                                <div key={i} className="h-4 rounded animate-pulse bg-muted-foreground/20" style={{ width: w }} />
+                            ))}
+                        </div>
+                        {/* Skeleton rows */}
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="px-4 py-3.5 flex items-center gap-6 border-b last:border-0">
+                                <div className="h-4 w-5 rounded animate-pulse bg-muted-foreground/15" />
+                                <div className="h-4 w-20 rounded animate-pulse bg-muted-foreground/15" />
+                                <div className="h-4 w-30 rounded animate-pulse bg-muted-foreground/15" />
+                                <div className="h-4 w-40 rounded animate-pulse bg-muted-foreground/15" />
+                                <div className="h-5 w-24 rounded-full animate-pulse bg-muted-foreground/15" />
+                                <div className="h-4 w-22 rounded animate-pulse bg-muted-foreground/15" />
+                                <div className="ml-auto h-6 w-6 rounded animate-pulse bg-muted-foreground/15" />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <DataTable 
+                        columns={columns} 
+                        data={tickets} 
+                        filterStatus={activeTab} 
+                        globalSearch={globalSearch}
+                        onStatusChange={handleStatusChange}
+                        onDeleteTicket={handleDeleteRequest}
+                        onEditTicket={handleEditRequest} 
+                        onBulkDelete={handleBulkDeleteRequest}
+                    />
+                )}
             </div>
 
             {/* 👇 REUSABLE DELETE CONFIRMATION DIALOG */}
@@ -163,7 +190,7 @@ export default function Main() {
 
 function Card({ title, num }: { title: string, num: number }) {
     return (
-        <div className="p-2 md:p-3 border rounded-xl flex-1 min-w-[80px]">
+        <div className="p-2 md:p-3 border rounded-xl flex-1 min-w-20">
             <p className="text-[10px] md:text-[13px] font-light pb-4">{title}</p>
             <h5 className="p-1 text-xl md:text-2xl font-bold">{num}</h5>
         </div>

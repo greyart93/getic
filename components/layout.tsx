@@ -5,93 +5,37 @@ import { Menu, X, Plus } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import NavBar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { TicketFormDialog } from "@/components/ticket-form-dialog";
-// 👇 Import Zod
-import { z } from "zod";
-
-// 👇 Shadcn Dialog Imports
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-
-// 👇 1. DEFINE YOUR ZOD SCHEMA
-const TicketSchema = z.object({
-  subject: z.string().min(1, "Subject is required"),
-  customer: z.string().min(1, "Customer name is required"),
-  email: z.email("Invalid email address"),
-});
+import { useTicketStore } from "@/lib/store";
+import { Toaster, toast } from "@/components/ui/toast";
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
+  // 👇 GET THE ADD ACTION FROM ZUSTAND
+  const addTicket = useTicketStore((state) => state.addTicket);
 
-  // 👇 2. STATE FOR INPUT FIELDS
-  const [subject, setSubject] = useState("");
-  const [customer, setCustomer] = useState("");
-  const [email, setEmail] = useState("");
-
-  // 👇 3. STATE FOR VALIDATION ERRORS
-  const [errors, setErrors] = useState<{ subject?: string; customer?: string; email?: string }>({});
-
-  // 👇 4. HANDLE SUBMIT WITH ZOD VALIDATION
-   const handleCreateTicket = (data: { subject: string; customer_name: string; customer_email: string }) => {
-    // Clear previous errors
-    setErrors({});
-
-     console.log("✅ Creating new ticket:", data);
-    // TODO: Send to your API here
-
-    // Validate the data
-    const result = TicketSchema.safeParse({
-      subject,
-      customer,
-      email,
-    });
-
-    if (!result.success) {
-      // 👇 FIX 1: Use 'issues' instead of 'errors'
-      const formattedErrors: Record<string, string> = {};
-      result.error.issues.forEach((issue) => {
-        if (issue.path[0]) {
-          formattedErrors[issue.path[0] as string] = issue.message;
-        }
-      });
-      
-      // 👇 FIX 2: Actually set the errors in state
-      setErrors(formattedErrors);
-      
-      // 👇 FIX 3: Immediately return so we don't submit
-      return; 
+  // 👇 REPLACED 50+ LINES OF CODE WITH THIS SINGLE HANDLER
+  const handleCreateTicket = async (data: { subject: string; customerName: string; customerEmail: string }) => {
+    const toastId = toast.add({
+      title: "Creating ticket...",
+      type: "loading",
+      timeout: 0, // don't auto-dismiss while loading
+    })
+    try {
+      await addTicket(data)
+      toast.update(toastId, { title: "Ticket created!", type: "success", timeout: 3000 })
+      setIsCreateDialogOpen(false)
+    } catch {
+      toast.update(toastId, { title: "Failed to create ticket", type: "error", timeout: 4000 })
     }
-
-    // ✅ IF WE REACH HERE, DATA IS 100% CORRECT
-    console.log("✅ DATA IS VALID:", result.data);
-
-    // 🔜 TODO: Replace console.log with your API call here
-    // await fetch('/api/tickets', { 
-    //   method: 'POST', 
-    //   body: JSON.stringify(result.data) 
-    // })
-
-    // Close dialog and clear form
-    setIsDialogOpen(false);
-    setSubject("");
-    setCustomer("");
-    setEmail("");
   };
 
   return (
+    <Toaster>
     <div className="min-h-[90svh] border-2 m-0 md:m-3 rounded-xl flex border-transparent md:border-border p-0">
-      {/* Sidebar (Same as before) */}
+      {/* Sidebar */}
       <div
         className={`
           fixed md:relative z-40
@@ -133,7 +77,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
             {isSidebarOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
 
-          {/* Dialog */}
+          {/* New Ticket Button */}
           <Button className="gap-2" onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="size-4" />
             New Ticket
@@ -148,12 +92,15 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
           {children}
         </main>
       </div>
-            <TicketFormDialog 
+
+      {/* Create Ticket Dialog */}
+      <TicketFormDialog 
         open={isCreateDialogOpen} 
         onOpenChange={setIsCreateDialogOpen} 
-        initialData={null} // Pass null to indicate CREATE mode
+        initialData={null} 
         onSave={handleCreateTicket}
       />
     </div>
+    </Toaster>
   );
 }

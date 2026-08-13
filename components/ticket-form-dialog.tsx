@@ -17,18 +17,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-// 👇 1. Zod Schema (same for both)
+// Zod Schema
 const TicketSchema = z.object({
   subject: z.string().min(1, "Subject is required"),
-  customer_name: z.string().min(1, "Customer name is required"),
-  customer_email: z.string().email("Invalid email address"),
+  customerName: z.string().min(1, "Customer name is required"),
+  customerEmail: z.string().email("Invalid email address"),
 })
 
 interface TicketFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  initialData?: Ticket | null // If provided, we are in "Edit" mode. If null, we are in "Create" mode.
-  onSave: (data: { subject: string; customer_name: string; customer_email: string }) => void
+  initialData?: Ticket | null
+  onSave: (data: { subject: string; customerName: string; customerEmail: string }) => void
 }
 
 export function TicketFormDialog({ 
@@ -37,38 +37,33 @@ export function TicketFormDialog({
   initialData, 
   onSave 
 }: TicketFormDialogProps) {
-  // 👇 2. State for the form fields
   const [subject, setSubject] = useState("")
   const [customerName, setCustomerName] = useState("")
   const [customerEmail, setCustomerEmail] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // 👇 3. Reset form or populate with existing data when dialog opens
   useEffect(() => {
     if (open) {
       if (initialData) {
-        // EDIT MODE: Populate fields
-        setSubject(initialData.subject)
-        setCustomerName(initialData.customer_name)
-        setCustomerEmail(initialData.customer_email)
+        setSubject(initialData.subject || "")
+        setCustomerName(initialData.customerName || "")
+        setCustomerEmail(initialData.customerEmail || "")
       } else {
-        // CREATE MODE: Reset fields
         setSubject("")
         setCustomerName("")
         setCustomerEmail("")
       }
-      setErrors({}) // Clear errors when opening
+      setErrors({})
     }
   }, [open, initialData])
 
-  // 👇 4. Handle Submit
   const handleSubmit = () => {
     setErrors({})
 
     const result = TicketSchema.safeParse({
       subject,
-      customer_name: customerName,
-      customer_email: customerEmail,
+      customerName,
+      customerEmail,
     })
 
     if (!result.success) {
@@ -82,89 +77,87 @@ export function TicketFormDialog({
       return
     }
 
-    // ✅ Success: Pass data up to parent
     onSave(result.data)
-    onOpenChange(false) // Close the dialog
+    onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{initialData ? "Edit Ticket" : "Create New Ticket"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg font-semibold">
+            {initialData ? "Edit Ticket" : "Create New Ticket"}
+          </DialogTitle>
+          <DialogDescription className="text-muted-foreground text-xs">
             {initialData 
-              ? "Make changes to the ticket details below." 
-              : "Fill in the details to create a new support ticket."}
+              ? "Update the details for this ticket below." 
+              : "Enter details to log a new customer support ticket."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="subject" className="text-right">
-              Subject
+        <div className="flex flex-col gap-4 py-2">
+          {/* Subject */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="subject" className="text-xs font-medium">
+              Subject <span className="text-destructive">*</span>
             </Label>
-            <div className="col-span-3 flex flex-col gap-1">
-              <Input
-                id="subject"
-                placeholder="e.g. UI bug"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className={errors.subject ? "border-red-500" : ""}
-              />
-              {errors.subject && (
-                <span className="text-xs text-red-500">{errors.subject}</span>
-              )}
-            </div>
+            <Input
+              id="subject"
+              placeholder="e.g. Navigation menu not responding"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className={errors.subject ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {errors.subject && (
+              <span className="text-xs font-medium text-destructive">{errors.subject}</span>
+            )}
           </div>
 
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="customer" className="text-right">
-              Customer
+          {/* Customer Name */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="customer" className="text-xs font-medium">
+              Customer Name <span className="text-destructive">*</span>
             </Label>
-            <div className="col-span-3 flex flex-col gap-1">
-              <Input
-                id="customer"
-                placeholder="e.g. John Doe"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className={errors.customer_name ? "border-red-500" : ""}
-              />
-              {errors.customer_name && (
-                <span className="text-xs text-red-500">{errors.customer_name}</span>
-              )}
-            </div>
+            <Input
+              id="customer"
+              placeholder="e.g. John Doe"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className={errors.customerName ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {errors.customerName && (
+              <span className="text-xs font-medium text-destructive">{errors.customerName}</span>
+            )}
           </div>
 
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="email" className="text-right">
-              Email
+          {/* Customer Email */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email" className="text-xs font-medium">
+              Customer Email <span className="text-destructive">*</span>
             </Label>
-            <div className="col-span-3 flex flex-col gap-1">
-              <Input
-                id="email"
-                type="email"
-                placeholder="john@example.com"
-                value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
-                className={errors.customer_email ? "border-red-500" : ""}
-              />
-              {errors.customer_email && (
-                <span className="text-xs text-red-500">{errors.customer_email}</span>
-              )}
-            </div>
+            <Input
+              id="email"
+              type="email"
+              placeholder="john@example.com"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              className={errors.customerEmail ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {errors.customerEmail && (
+              <span className="text-xs font-medium text-destructive">{errors.customerEmail}</span>
+            )}
           </div>
         </div>
 
-        <DialogFooter className="gap-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
+          <Button type="button" onClick={handleSubmit}>
             {initialData ? "Save Changes" : "Create Ticket"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
-}
+}

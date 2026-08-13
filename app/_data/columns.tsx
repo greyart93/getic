@@ -47,7 +47,7 @@ const SortableHeader = ({ column, title }: { column: any, title: string }) => {
 };
 
 export const columns = columnHelper.columns([
-  columnHelper.accessor("ticket_id", {
+  columnHelper.accessor("ticketId", {
     header: ({ column }) => <SortableHeader column={column} title="ID" />,
   }),
   
@@ -55,7 +55,7 @@ export const columns = columnHelper.columns([
     header: ({ column }) => <SortableHeader column={column} title="Subject" />,
   }),
   
-  columnHelper.accessor("customer_name", {
+  columnHelper.accessor("customerName", {
     header: ({ column }) => <SortableHeader column={column} title="Customer" />,
     cell: ({ getValue }) => {
       const val = getValue()
@@ -78,7 +78,7 @@ export const columns = columnHelper.columns([
 
       const getBadgeVariant = (status: string) => {
         if (status === "OPEN") return "default";
-        if (status === "IN PROGRESS") return "green";
+        if (status === "IN PROGRESS" || status === "IN_PROGRESS") return "green";
         return "destructive";
       }
 
@@ -92,7 +92,8 @@ export const columns = columnHelper.columns([
 
       return (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          
+          <DropdownMenuTrigger>
             <div className="cursor-pointer">
               <Badge variant={getBadgeVariant(currentStatus)}>
                 {currentStatus}
@@ -144,7 +145,7 @@ export const columns = columnHelper.columns([
 
       return (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">Open menu</span>
               <MoreHorizontal className="h-4 w-4" />
@@ -175,7 +176,7 @@ export const globalSearchFilter = (row: any, columnId: string, filterValue: stri
   const searchValue = filterValue.toLowerCase()
   
   // Define which columns to search
-  const searchableColumns = ['ticket_id', 'subject', 'customer_name']
+  const searchableColumns = ['ticketId', 'subject', 'customerName']
   
   // Check if ANY of those columns match the search
   return searchableColumns.some(colId => {

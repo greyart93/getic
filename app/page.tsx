@@ -3,10 +3,11 @@ import Main from "@/components/main";
 import { tickets } from "@/app/_data/tempdata"
 
 export default function Page() {
-  const initData = tickets;
   return (
     <div>
-      <LayoutClient children={<Main initialTickets={initData}/>} />
+      <LayoutClient>
+        <Main />
+      </LayoutClient>
     </div>
   )
 }

@@ -69,15 +69,15 @@ export function DataTable<TData extends RowData>({
     let result = data
     const statusFilter = columnFilters.find(f => f.id === 'status')
     if (statusFilter) {
-      result = result.filter((item: any) => item.status === statusFilter.value)
+      result = result.filter((item: any) => item.status === statusFilter.value || (statusFilter.value === "IN PROGRESS" && item.status === "IN_PROGRESS"))
     }
     if (globalSearch.trim() !== "") {
       const searchLower = globalSearch.toLowerCase()
       result = result.filter((item: any) => {
         return (
-          String(item.ticket_id).toLowerCase().includes(searchLower) ||
-          String(item.subject).toLowerCase().includes(searchLower) ||
-          String(item.customer_name).toLowerCase().includes(searchLower)
+          String(item.ticketId || item.ticket_id || "").toLowerCase().includes(searchLower) ||
+          String(item.subject || "").toLowerCase().includes(searchLower) ||
+          String(item.customerName || item.customer_name || "").toLowerCase().includes(searchLower)
         )
       })
     }
@@ -85,7 +85,8 @@ export function DataTable<TData extends RowData>({
   }, [data, columnFilters, globalSearch])
 
   // 👇 DEFINE THE CHECKBOX COLUMN
-  const checkboxColumn = {
+   // 👇 FIXED: Added explicit ColumnDef typing
+  const checkboxColumn: ColumnDef<DataTableFeatures, TData> = {
     id: "select",
     header: ({ table }: any) => (
       <Checkbox
@@ -103,8 +104,7 @@ export function DataTable<TData extends RowData>({
     ),
     enableSorting: false,
     enableHiding: false,
-  } as ColumnDef<DataTableFeatures, any>
-
+  }
   const table = useTable({
     features,
     data: filteredData,
