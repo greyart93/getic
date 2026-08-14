@@ -205,3 +205,8 @@
   0% { opacity: 0; }
   100% { opacity: 1; }
 }
+
+/* In app/globals.css */
+.dark .logo-invert {
+  filter: invert(1); /* Inverts black to white, but red stays red! */
+}

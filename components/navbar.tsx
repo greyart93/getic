@@ -5,6 +5,7 @@ import { LayoutDashboard, Ticket, User, Settings } from 'lucide-react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import Image from "next/image";
 
 interface NavBarProps {
     closeSidebar?: () => void;
@@ -26,7 +27,8 @@ export default function NavBar({ closeSidebar }: NavBarProps) {
 
     return (
         <div className="h-full flex flex-col">
-            <h1 className="pb-5 font-bold">GeTiC</h1>
+            {/* <h1 className="pb-5 font-bold">GeTiC</h1> */}
+            <Image src={'/getic_logo.webp'} alt={'GeTiC'} width={100} height={10} className="pb-5 logo-invert cursor-pointer" />
             
             {/* 👇 UPDATED: Larger text on mobile, small text on desktop */}
             <div className="text-base md:text-[12px] flex flex-1 flex-col items-start gap-5 md:gap-4 font-medium">
