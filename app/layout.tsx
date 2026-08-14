@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     siteName: "GeTiC",
     images: [
       {
-        url: "/favicon.ico", // This is your logo
+        url: "/favicon.ico", 
         width: 10,
         height: 10,
         alt: "GeTiC Logo",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "GeTiC - Support Ticket Dashboard",
     description: "A modern, efficient support ticket management dashboard.",
-    images: ["/getic_logo.webp"],
+    images: ["icon.webp"],
   },
   icons: {
     icon: [
