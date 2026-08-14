@@ -25,12 +25,12 @@ export function DataTablePagination<TData extends RowData>({
   table,
 }: DataTablePaginationProps<TData>) {
   return (
-    <div className="flex items-center justify-between p-1">
+    <div className="flex items-center justify-between p-1 overflow-x-auto w-full">
       <div className="flex-1 text-sm text-muted-foreground hidden sm:block scrollbar-thin scrollbar-thumb-rounded">
         {table.getFilteredSelectedRowModel().rows.length} of{" "}
         {table.getFilteredRowModel().rows.length} row(s) selected.
       </div>
-      <div className="flex items-center space-x-6 lg:space-x-8">
+      <div className="flex items-center space-x-2 sm:space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows per page</p>
           <Select

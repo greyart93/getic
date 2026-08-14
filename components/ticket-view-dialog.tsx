@@ -55,6 +55,7 @@ export function TicketViewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <button className="sr-only" aria-hidden="true" tabIndex={0}>Focus catcher</button>
         <DialogHeader className="border-b pb-4">
           <div className="flex items-center justify-between gap-2 pr-6">
             <div className="flex items-center gap-2">

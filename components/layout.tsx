@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Menu, X, Plus } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { ThemeToggle } from "./ui/toggle-theme";
 import NavBar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { TicketFormDialog } from "@/components/ticket-form-dialog";
@@ -11,40 +12,35 @@ import { Toaster, toast } from "@/components/ui/toast";
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   // 👇 GET THE ADD ACTION FROM ZUSTAND
   const addTicket = useTicketStore((state) => state.addTicket);
 
   // 👇 REPLACED 50+ LINES OF CODE WITH THIS SINGLE HANDLER
-  const handleCreateTicket = async (data: { subject: string; customerName: string; customerEmail: string }) => {
-    const toastId = toast.add({
-      title: "Creating ticket...",
-      type: "loading",
-      timeout: 0, // don't auto-dismiss while loading
-    })
+  const handleCreateTicket = async (data: { subject: string; customerName: string; customerEmail: string; description: string }) => {
     try {
       await addTicket(data)
-      toast.update(toastId, { title: "Ticket created!", type: "success", timeout: 3000 })
       setIsCreateDialogOpen(false)
-    } catch {
-      toast.update(toastId, { title: "Failed to create ticket", type: "error", timeout: 4000 })
+    } catch (error) {
+      // Error toast is already handled in the store
+      console.error(error)
     }
   };
 
   return (
     <Toaster>
-    <div className="min-h-[90svh] border-2 m-0 md:m-3 rounded-xl flex border-transparent md:border-border p-0">
+    <div className="min-h-[90svh] border-2 m-0 md:m-3 rounded-xl flex border-transparent md:border-border p-0 overflow-hidden">
       {/* Sidebar */}
       <div
         className={`
           fixed md:relative z-40
-          w-70 md:w-[13%] min-w-45
-          h-full md:h-auto
-          border-r-2 rounded-none md:rounded-l-xl p-3
+          h-full md:h-auto overflow-hidden
           bg-[#fafafa] dark:bg-[#0f0f11]
-          transition-transform duration-300 ease-in-out
-          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          transition-all duration-300 ease-in-out
+          ${isSidebarOpen ? "translate-x-0 w-70 min-w-45 border-r-2 p-3" : "-translate-x-full w-70 min-w-45 p-3 md:p-0"}
+          ${isDesktopSidebarOpen ? "md:translate-x-0 md:w-[15%] md:min-w-45 md:border-r-2 md:rounded-l-xl md:p-3" : "md:-translate-x-[200%] md:w-0 md:min-w-0 md:border-r-0 md:p-0"}
         `}
       >
         <button
@@ -67,8 +63,9 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
       )}
 
       {/* Header Content */}
-      <div className="flex-1 p-3">
-        <header className="flex justify-end items-center mb-4 gap-2">
+      <div className="flex-1 p-3 min-w-0 overflow-x-hidden">
+        <header className="flex justify-start items-center mb-4 gap-2">
+          {/* Mobile Toggle */}
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="md:hidden p-2 rounded-md hover:bg-accent mr-auto"
@@ -77,14 +74,27 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
             {isSidebarOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
 
-          {/* New Ticket Button */}
-          <Button className="gap-2" onClick={() => setIsCreateDialogOpen(true)}>
-            <Plus className="size-4" />
-            New Ticket
-          </Button>
+          {/* Desktop Toggle */}
+          <button
+            onClick={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
+            className="hidden md:flex p-2 rounded-md hover:bg-accent mr-auto"
+            aria-label="Toggle sidebar"
+          >
+            <Menu className="size-5" />
+          </button>
 
-          {/* Dark/Light Mode */}
-          <ModeToggle />
+          <div className="flex items-center gap-2">
+            {/* New Ticket Button */}
+            <Button className="gap-2" onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">New Ticket</span>
+              <span className="sm:hidden">New</span>
+            </Button>
+
+            {/* Dark/Light Mode */}
+            {/* <ModeToggle /> */}
+            <ThemeToggle />
+          </div>
         </header>
 
         {/* Main content */}

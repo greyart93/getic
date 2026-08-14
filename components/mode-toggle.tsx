@@ -1,9 +1,6 @@
 // components/mode-toggle.tsx
 "use client";
 
-
-// simple light & dark toogle button
-
 import * as React from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -19,12 +16,29 @@ export function ModeToggle() {
     return <Button variant="outline" size="icon" />;
   }
 
+  // 👇 CUSTOM HANDLER WITH VIEW TRANSITION API
+  const handleToggle = () => {
+    const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
+
+    // Check if browser supports View Transitions
+    if (!document.startViewTransition) {
+      setTheme(nextTheme);
+      console.log('not supported')
+      return '';
+    }
+
+    // Use View Transition API for a smooth crossfade
+    document.startViewTransition(() => {
+      setTheme(nextTheme);
+    });
+  };
+
   return (
     <Button
       variant="outline"
       size="icon"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      className='bg-[#fafafa]'
+      onClick={handleToggle}
+      className="bg-[#fafafa] dark:bg-[#0f0f11] transition-colors duration-300"
     >
       <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
       <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -32,7 +46,6 @@ export function ModeToggle() {
     </Button>
   );
 }
-
 
 // has system, light, and dark dropdown menu
 // components/mode-toggle.tsx

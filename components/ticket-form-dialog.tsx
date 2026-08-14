@@ -16,19 +16,21 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 // Zod Schema
 const TicketSchema = z.object({
   subject: z.string().min(1, "Subject is required"),
   customerName: z.string().min(1, "Customer name is required"),
   customerEmail: z.string().email("Invalid email address"),
+  description: z.string().min(1, "Description is required"),
 })
 
 interface TicketFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialData?: Ticket | null
-  onSave: (data: { subject: string; customerName: string; customerEmail: string }) => void
+  onSave: (data: { subject: string; customerName: string; customerEmail: string; description: string }) => void
 }
 
 export function TicketFormDialog({ 
@@ -40,6 +42,7 @@ export function TicketFormDialog({
   const [subject, setSubject] = useState("")
   const [customerName, setCustomerName] = useState("")
   const [customerEmail, setCustomerEmail] = useState("")
+  const [description, setDescription] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -48,10 +51,12 @@ export function TicketFormDialog({
         setSubject(initialData.subject || "")
         setCustomerName(initialData.customerName || "")
         setCustomerEmail(initialData.customerEmail || "")
+        setDescription(initialData.description || "")
       } else {
         setSubject("")
         setCustomerName("")
         setCustomerEmail("")
+        setDescription("")
       }
       setErrors({})
     }
@@ -64,6 +69,7 @@ export function TicketFormDialog({
       subject,
       customerName,
       customerEmail,
+      description,
     })
 
     if (!result.success) {
@@ -83,7 +89,7 @@ export function TicketFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             {initialData ? "Edit Ticket" : "Create New Ticket"}
@@ -145,6 +151,23 @@ export function TicketFormDialog({
             />
             {errors.customerEmail && (
               <span className="text-xs font-medium text-destructive">{errors.customerEmail}</span>
+            )}
+          </div>
+
+          {/* Description */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="description" className="text-xs font-medium">
+              Description <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="description"
+              placeholder="Describe the issue in detail..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={`min-h-[100px] resize-none ${errors.description ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            />
+            {errors.description && (
+              <span className="text-xs font-medium text-destructive">{errors.description}</span>
             )}
           </div>
         </div>

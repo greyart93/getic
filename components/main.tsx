@@ -100,7 +100,7 @@ export default function Main() {
     }
 
     // 6. HANDLE EDIT SAVE (Uses Zustand)
-    const handleEditSave = (data: { subject: string; customerName: string; customerEmail: string }) => {
+    const handleEditSave = (data: { subject: string; customerName: string; customerEmail: string; description: string }) => {
         if (ticketToEdit) {
             updateTicket(ticketToEdit.id, data)
             setEditDialogOpen(false)
@@ -121,36 +121,46 @@ export default function Main() {
     }
 
     // Live Summary Cards (Uses Zustand tickets array)
-    const cardData = useMemo(() => {
+    // const cardData = useMemo(() => {
+    //     const total = tickets.length;
+    //     const open = tickets.filter(t => t.status === 'OPEN').length;
+    //     const inProgress = tickets.filter(t => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length;
+    //     const closed = tickets.filter(t => t.status === 'CLOSED').length;
+    //     return [
+    //         { title: "Total Tickets", num: total },
+    //         { title: "Open", num: open },
+    //         { title: 'In Progress', num: inProgress },
+    //         { title: 'Closed', num: closed }
+    //     ];
+    // }, [tickets]);
+
+    // 👇 STATS CALCULATION (Used for both header and filters)
+    const statData = useMemo(() => {
         const total = tickets.length;
         const open = tickets.filter(t => t.status === 'OPEN').length;
-        const inProgress = tickets.filter(t => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length;
+        const inProgress = tickets.filter(t => t.status === 'IN_PROGRESS').length;
         const closed = tickets.filter(t => t.status === 'CLOSED').length;
-        return [
-            { title: "Total Tickets", num: total },
-            { title: "Open", num: open },
-            { title: 'In Progress', num: inProgress },
-            { title: 'Closed', num: closed }
-        ];
-    }, [tickets]);
+        return { total, open, inProgress, closed };
+        }, [tickets]);
 
     return (
         <main>
             {/* Summary Cards */}
-            <div className="md:flex gap-3 overflow-hidden hidden">
+            {/* <div className="hidden md:grid md:grid-cols-2 lg:flex gap-3 overflow-hidden">
                 {cardData.map((v, i) => (
                     <Card key={i} title={v.title} num={v.num} />
                 ))}
-            </div>
+            </div> */}
 
             {/* Tabs + Search */}
             <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <Tabs defaultValue="all" onValueChange={setActiveTab}>
                     <TabsList variant={"pill"} className='py-5 px-1.5'>
-                        <TabsTrigger value="all" className='p-4'>All</TabsTrigger>
-                        <TabsTrigger value="open" className='p-4'>Open</TabsTrigger>
-                        <TabsTrigger value="in_progress" className='p-4'>In Progress</TabsTrigger>
-                        <TabsTrigger value="closed" className='p-4'>Closed</TabsTrigger>
+                        <TabsTrigger value="all" className='p-4'>All ({statData.total})</TabsTrigger>
+                        <TabsTrigger value="open" className='p-4'>Open ({statData.open})</TabsTrigger>
+                        <TabsTrigger value="in_progress" className='p-4'>In Progress ({statData.inProgress})</TabsTrigger>
+                        <TabsTrigger value="closed" className='p-4'>Closed ({statData.closed})</TabsTrigger>
+
                     </TabsList>
                 </Tabs>
                 <div className="w-full sm:w-auto">
@@ -167,7 +177,7 @@ export default function Main() {
             </div>
 
             {/* Data Table */}
-            <div className="w-[90vw] sm:w-full mt-4">
+            <div className="w-full mt-4 overflow-hidden">
                 {isLoading ? (
                     <div className="rounded-md border overflow-hidden">
                         {/* Skeleton header */}
@@ -201,6 +211,9 @@ export default function Main() {
                         onViewTicket={handleViewRequest}
                         onAddNoteTicket={handleAddNoteRequest}
                         onBulkDelete={handleBulkDeleteRequest}
+                        // 👇 PASS STATS TO THE TABLE
+                        headerStats={statData}
+
                     />
                 )}
             </div>
@@ -240,11 +253,11 @@ export default function Main() {
     )
 }
 
-function Card({ title, num }: { title: string, num: number }) {
-    return (
-        <div className="p-2 md:p-3 border rounded-xl flex-1 min-w-20">
-            <p className="text-[10px] md:text-[13px] font-light pb-4">{title}</p>
-            <h5 className="p-1 text-xl md:text-2xl font-bold">{num}</h5>
-        </div>
-    )
-}
+// function Card({ title, num }: { title: string, num: number }) {
+//     return (
+//         <div className="p-2 md:p-3 border rounded-xl flex-1 min-w-20">
+//             <p className="text-[10px] md:text-[13px] font-light pb-4">{title}</p>
+//             <h5 className="p-1 text-xl md:text-2xl font-bold">{num}</h5>
+//         </div>
+//     )
+// }

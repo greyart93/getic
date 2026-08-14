@@ -131,7 +131,7 @@
     }
 }
 
-::view-transition-old(root),
+/* ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
@@ -143,5 +143,65 @@
 
 ::view-transition-new(root) {
   z-index: 9999;
+} */
+
+
+/* In app/globals.css */
+/* ::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.5s;
+} 
+
+::view-transition-old(root) {
+  animation-name: fade-out;
 }
 
+::view-transition-new(root) {
+  animation-name: fade-in;
+}
+
+@keyframes fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+} */
+
+/* For a circle wipe effect (advanced) */
+/* ::view-transition-old(root) {
+  animation: none;
+  z-index: 1;
+}
+::view-transition-new(root) {
+  animation: clip-circle 0.6s ease-out;
+  z-index: 0;
+}
+
+@keyframes clip-circle {
+  0% {
+    clip-path: circle(0% at 50% 50%);
+  }
+  100% {
+    clip-path: circle(100% at 50% 50%);
+  }
+} */
+
+::view-transition-old(root) {
+  animation: fade-out 0.4s ease-in-out;
+}
+::view-transition-new(root) {
+  animation: fade-in 0.4s ease-in-out;
+}
+
+@keyframes fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}

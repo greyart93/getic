@@ -36,6 +36,14 @@ interface DataTableProps<TData extends RowData> {
   onViewTicket?: (ticket: TData) => void
   onAddNoteTicket?: (ticket: TData) => void
   onBulkDelete?: (ids: number[]) => void
+  // 👇 NEW PROP FOR STATS
+  headerStats?: {
+    total: number
+    open: number
+    inProgress: number
+    closed: number
+  }
+
 }
 
 export function DataTable<TData extends RowData>({
@@ -49,6 +57,8 @@ export function DataTable<TData extends RowData>({
   onViewTicket,
   onAddNoteTicket,
   onBulkDelete,
+  headerStats,
+
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -161,11 +171,11 @@ export function DataTable<TData extends RowData>({
   }
 
   return (
-    <div className="h-[60vh] flex flex-col overflow-auto rounded-md border relative">
+    <div className="h-[75vh] flex flex-col rounded-md border relative overflow-hidden">
       
       {/* 👇 BULK ACTION TOOLBAR */}
       {selectedIds.length > 0 && (
-        <div className="sticky top-0 z-20 bg-gray-200 dark:bg-[#0f0f11] p-2 border-b flex justify-between items-center">
+        <div className="bg-gray-200 dark:bg-[#0f0f11] p-2 border-b flex justify-between items-center z-20">
           <span className="text-sm text-muted-foreground">
             {selectedIds.length} row(s) selected
           </span>
@@ -181,7 +191,7 @@ export function DataTable<TData extends RowData>({
         </div>
       )}
 
-      <div className="flex-1">
+      <div className="flex-1 overflow-auto">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-gray-200 dark:bg-[#0f0f11]">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -222,7 +232,7 @@ export function DataTable<TData extends RowData>({
           </TableBody>
         </Table>
       </div>
-      <div className="sticky bottom-0 z-10 p-0.5 bg-gray-200 dark:bg-[#0f0f11] border-t">
+      <div className="p-0.5 bg-gray-200 dark:bg-[#0f0f11] border-t z-10 w-full">
         <DataTablePagination table={table} />
       </div>
     </div>
