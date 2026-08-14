@@ -48,7 +48,7 @@ export default function NavBar({ closeSidebar }: NavBarProps) {
             <div className="flex items-center gap-3 border-t p-3 antialiased group transition-colors duration-200">
     <TooltipProvider>
         <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger>
                 <Link 
                     href="https://github.com/greyart93/getic" 
                     target="_blank" 
