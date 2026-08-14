@@ -13,8 +13,8 @@ interface NavBarProps {
 const NavContent = [
     { icon: <LayoutDashboard className="w-4"/>, label: 'Dashboard', href: '/dashboard' }, 
     { icon: <Ticket className="w-4"/>, label: 'Tickets', href: '/' }, 
-    { icon: <User className="w-4"/>, label: 'Customers', href: '#' }, 
-    { icon: <Settings className="w-4" />, label: 'Settings', href: '#' }
+    // { icon: <User className="w-4"/>, label: 'Customers', href: '#' }, 
+    // { icon: <Settings className="w-4" />, label: 'Settings', href: '#' }
 ];
 
 export default function NavBar({ closeSidebar }: NavBarProps) {
