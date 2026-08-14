@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     template: "%s | GeTiC",
   },
   description: "A modern, efficient support ticket management dashboard built with Next.js.",
-  metadataBase: new URL("https://github.com/greyart93/getic"), // Change to your actual domain
+  metadataBase: new URL("https://github.com/greyart93/getic"), 
   authors: [{ name: "Saud Mullaji", url: "https://github.com/greyart93" }],
   creator: "Saud Mullaji",
   keywords: ["tickets", "support", "dashboard", "nextjs", "prisma", "zustand"],
