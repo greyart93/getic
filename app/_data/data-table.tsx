@@ -33,6 +33,8 @@ interface DataTableProps<TData extends RowData> {
   globalSearch?: string 
   onDeleteTicket?: (id: number) => void
   onEditTicket?: (ticket: TData) => void
+  onViewTicket?: (ticket: TData) => void
+  onAddNoteTicket?: (ticket: TData) => void
   onBulkDelete?: (ids: number[]) => void
 }
 
@@ -44,6 +46,8 @@ export function DataTable<TData extends RowData>({
   globalSearch = "", 
   onDeleteTicket,   
   onEditTicket,
+  onViewTicket,
+  onAddNoteTicket,
   onBulkDelete,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -120,7 +124,9 @@ export function DataTable<TData extends RowData>({
     meta: {
       onStatusChange,
       onDeleteTicket,
-      onEditTicket
+      onEditTicket,
+      onViewTicket,
+      onAddNoteTicket,
     } as any,
     initialState: {
       pagination: {

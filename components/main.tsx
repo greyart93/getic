@@ -7,6 +7,8 @@ import { columns } from "@/app/_data/columns"
 import { Input } from "@/components/ui/input"
 import { TicketFormDialog } from "@/components/ticket-form-dialog"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
+import { TicketViewDialog } from "@/components/ticket-view-dialog"
+import { TicketNoteDialog } from "@/components/ticket-note-dialog"
 import { Search } from "lucide-react";
 import { useTicketStore } from "@/lib/store"; // 👈 Import store
 import type { Ticket } from "@/app/_data/tempdata";
@@ -20,7 +22,8 @@ export default function Main() {
         updateStatus, 
         deleteTicket, 
         deleteBulkTickets, 
-        updateTicket 
+        updateTicket,
+        addNoteToTicket,
     } = useTicketStore()
 
     // 👇 2. FETCH DATA FROM DB ON FIRST LOAD
@@ -39,6 +42,25 @@ export default function Main() {
     // States for Edit
     const [editDialogOpen, setEditDialogOpen] = useState(false)
     const [ticketToEdit, setTicketToEdit] = useState<Ticket | null>(null)
+
+    // States for View
+    const [viewDialogOpen, setViewDialogOpen] = useState(false)
+    const [ticketToViewId, setTicketToViewId] = useState<number | null>(null)
+
+    // States for Add Note
+    const [noteDialogOpen, setNoteDialogOpen] = useState(false)
+    const [ticketToNoteId, setTicketToNoteId] = useState<number | null>(null)
+
+    // Derived active ticket objects so notes update live
+    const ticketToView = useMemo(
+        () => tickets.find((t) => t.id === ticketToViewId) || null,
+        [tickets, ticketToViewId]
+    )
+
+    const ticketToNote = useMemo(
+        () => tickets.find((t) => t.id === ticketToNoteId) || null,
+        [tickets, ticketToNoteId]
+    )
 
     // 1. CHANGE STATUS (Uses Zustand)
     const handleStatusChange = (id: number, newStatus: "OPEN" | "IN PROGRESS" | "CLOSED") => {
@@ -84,6 +106,18 @@ export default function Main() {
             setEditDialogOpen(false)
             setTicketToEdit(null)
         }
+    }
+
+    // 7. OPEN VIEW DIALOG
+    const handleViewRequest = (ticket: Ticket) => {
+        setTicketToViewId(ticket.id)
+        setViewDialogOpen(true)
+    }
+
+    // 8. OPEN NOTE DIALOG
+    const handleAddNoteRequest = (ticket: Ticket) => {
+        setTicketToNoteId(ticket.id)
+        setNoteDialogOpen(true)
     }
 
     // Live Summary Cards (Uses Zustand tickets array)
@@ -163,7 +197,9 @@ export default function Main() {
                         globalSearch={globalSearch}
                         onStatusChange={handleStatusChange}
                         onDeleteTicket={handleDeleteRequest}
-                        onEditTicket={handleEditRequest} 
+                        onEditTicket={handleEditRequest}
+                        onViewTicket={handleViewRequest}
+                        onAddNoteTicket={handleAddNoteRequest}
                         onBulkDelete={handleBulkDeleteRequest}
                     />
                 )}
@@ -183,6 +219,22 @@ export default function Main() {
                 onOpenChange={setEditDialogOpen} 
                 initialData={ticketToEdit} 
                 onSave={handleEditSave}
+            />
+
+            {/* 👇 DETAILED VIEW DIALOG */}
+            <TicketViewDialog 
+                open={viewDialogOpen}
+                onOpenChange={setViewDialogOpen}
+                ticket={ticketToView}
+                onAddNote={addNoteToTicket}
+            />
+
+            {/* 👇 ADD NOTE DIALOG */}
+            <TicketNoteDialog 
+                open={noteDialogOpen}
+                onOpenChange={setNoteDialogOpen}
+                ticket={ticketToNote}
+                onSaveNote={addNoteToTicket}
             />
         </main>
     )

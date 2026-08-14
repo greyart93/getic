@@ -37,6 +37,11 @@ export async function GET() {
   try {
     const tickets = await prisma.ticket.findMany({
       orderBy: { createdAt: 'desc' },
+      include: {
+        notes: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     })
     return NextResponse.json(tickets)
   } catch (error) {

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Eye, StickyNote } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -21,8 +21,10 @@ import { type DataTableFeatures } from "./data-table-features";
 // 👇 Define the shape of our custom meta locally
 type TableMetaWithHandler = {
   onStatusChange?: (id: number, newStatus: "OPEN" | "IN PROGRESS" | "CLOSED") => void
-   onDeleteTicket?: (id: number) => void   // 👈 Add this
+  onDeleteTicket?: (id: number) => void   // 👈 Add this
   onEditTicket?: (ticket: Ticket) => void // 👈 Add this
+  onViewTicket?: (ticket: Ticket) => void
+  onAddNoteTicket?: (ticket: Ticket) => void
 }
 
 const columnHelper = createColumnHelper<DataTableFeatures, Ticket>()
@@ -72,7 +74,11 @@ export const columns = columnHelper.columns([
   }),
   
   columnHelper.accessor("status", {
-    header: ({ column }) => <SortableHeader column={column} title="Status" />,
+    header: ({ column }) => (
+      <div className="flex justify-center">
+        <SortableHeader column={column} title="Status" />
+      </div>
+    ),
     cell: ({ row, getValue, table }) => {
       const currentStatus = getValue();
 
@@ -91,31 +97,30 @@ export const columns = columnHelper.columns([
       }
 
       return (
-        <DropdownMenu>
-          
-          <DropdownMenuTrigger>
-            <div className="cursor-pointer">
+        <div className="flex items-center justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="cursor-pointer outline-none">
               <Badge variant={getBadgeVariant(currentStatus)}>
-                {currentStatus}
+                {currentStatus === 'IN_PROGRESS' ? 'IN PROGRESS' : currentStatus}
               </Badge>
-            </div>
-          </DropdownMenuTrigger>
-          
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => handleStatusChange("OPEN")}>
-              <Badge variant="default" className="mr-2 h-2 w-2 rounded-full p-0" />
-              Open
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleStatusChange("IN PROGRESS")}>
-              <Badge  className="mr-2 h-2 w-2 rounded-full p-0 bg-green-600" />
-              In Progress
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleStatusChange("CLOSED")}>
-              <Badge  className="mr-2 h-2 w-2 rounded-full p-0 bg-red-500" />
-              Closed
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuTrigger>
+            
+            <DropdownMenuContent align="center">
+              <DropdownMenuItem onClick={() => handleStatusChange("OPEN")}>
+                <Badge variant="default" className="mr-2 h-2 w-2 rounded-full p-0" />
+                Open
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleStatusChange("IN PROGRESS")}>
+                <Badge className="mr-2 h-2 w-2 rounded-full p-0 bg-green-600" />
+                In Progress
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleStatusChange("CLOSED")}>
+                <Badge className="mr-2 h-2 w-2 rounded-full p-0 bg-red-500" />
+                Closed
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )
     }
   }),
@@ -128,7 +133,20 @@ export const columns = columnHelper.columns([
     cell: ({ row, table }) => {
       const ticket = row.original;
 
-      // Access the delete function from table meta
+      const handleView = () => {
+        const meta = table.options.meta as TableMetaWithHandler;
+        if (meta?.onViewTicket) {
+          meta.onViewTicket(ticket);
+        }
+      };
+
+      const handleAddNote = () => {
+        const meta = table.options.meta as TableMetaWithHandler;
+        if (meta?.onAddNoteTicket) {
+          meta.onAddNoteTicket(ticket);
+        }
+      };
+
       const handleDelete = () => {
         const meta = table.options.meta as TableMetaWithHandler;
         if (meta?.onDeleteTicket) {
@@ -145,13 +163,19 @@ export const columns = columnHelper.columns([
 
       return (
         <DropdownMenu>
-          <DropdownMenuTrigger>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+          <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none h-8 w-8 p-0 cursor-pointer">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleView}>
+              <Eye className="mr-2 h-4 w-4" />
+              View
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleAddNote}>
+              <StickyNote className="mr-2 h-4 w-4" />
+              Add Note
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleEdit}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit

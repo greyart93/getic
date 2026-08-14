@@ -1,3 +1,10 @@
+export type Note = {
+    id: number
+    ticketId: number
+    notesText: string
+    createdAt?: string
+}
+
 export type Ticket = {
     id: number
     ticketId: string
@@ -7,12 +14,9 @@ export type Ticket = {
     description: string
     status: 'OPEN' | 'IN PROGRESS' | 'CLOSED' | 'IN_PROGRESS'
     date: string
-}
-
-export type Note = {
-    id: number
-    ticketId: number
-    notesText: string
+    createdAt?: string
+    updatedAt?: string
+    notes?: Note[]
 }
 
 export const tickets: Ticket[] = [
