@@ -28,7 +28,7 @@ export default function NavBar({ closeSidebar }: NavBarProps) {
     return (
         <div className="h-full flex flex-col">
             {/* <h1 className="pb-5 font-bold">GeTiC</h1> */}
-            <Image loading="eager" src={'/getic_logo.webp'} alt={'GeTiC'} width={100} height={10} className="pb-5 logo-invert cursor-pointer" />
+            <Image loading="eager" src={'../icon.webp'} alt={'GeTiC'} width={100} height={10} className="pb-5 logo-invert cursor-pointer" />
             
             {/* 👇 UPDATED: Larger text on mobile, small text on desktop */}
             <div className="text-base md:text-[12px] flex flex-1 flex-col items-start gap-5 md:gap-4 font-medium">

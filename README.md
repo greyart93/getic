@@ -1,6 +1,6 @@
 # Getic — Customer Support & Ticket Management Platform
 
-> A high-performance, enterprise-grade Customer Support & Helpdesk platform designed for modern support teams. Built with Next.js 16, React 19, Prisma ORM 7, PostgreSQL, and Zustand.
+> A high-performance, enterprise-grade Customer Support & Helpdesk platform designed for modern support teams. Built with Next.js 16, React 19, Prisma ORM 7, PostgreSQL, Tanstack/table and Zustand.
 
 ---
 
@@ -32,15 +32,17 @@ It provides support engineering teams with an intuitive, centralized dashboard t
 
 <!-- PLACEHOLDER FOR IMAGE SECTION: Paste your application screenshots below -->
 
-| **Dashboard View** | **Ticket Details & Internal Notes** |
+| **Ticket Table** | **Ticket Details & Internal Notes** |
 | :---: | :---: |
-| ![Getic Dashboard View](https://placehold.co/800x450/0f172a/64748b?text=Paste+Dashboard+Screenshot+Here) | ![Ticket View & Notes Modal](https://placehold.co/800x450/0f172a/64748b?text=Paste+Ticket+View+%26+Notes+Modal+Here) |
+| ![Ticket Table](./public/tickets.png) | ![Ticket View & Notes Modal](./public/view_ticket.png) |
 
-| **Create / Edit Ticket Modal** | **Bulk Action & Dark/Light Theme** |
+| **Create/ Edit Ticket Modal** | **Delete Ticket Modal** |
 | :---: | :---: |
-| ![Create Ticket Modal](https://placehold.co/800x450/0f172a/64748b?text=Paste+Create+Ticket+Modal+Here) | ![Theme & Bulk Actions](https://placehold.co/800x450/0f172a/64748b?text=Paste+Theme+%26+Bulk+Actions+Here) |
+| ![Create Ticket Modal](./public/new_ticket.png) | ![Delete Ticket Modal](./public/delete_ticket.png) |
 
-> 💡 **Instructions to update screenshots**: Replace the placeholder image URLs above with relative paths to your local images (e.g., `./public/dashboard.png`) or hosted image URLs.
+| **Create Note Modal** | **DashBoard View** |
+| :---: | :---: |
+| ![Create Note Modal](./public/add_note.png) | ![DashBoard](./public/dashbaord.png) |
 
 ---
 
@@ -432,13 +434,13 @@ Global endpoint to post an internal note by supplying `ticketId` in the JSON req
 
 4. **Run Database Migrations & Prisma Generation**
    ```bash
-   npx prisma db push
-   npx prisma generate
+   pnpx prisma db push
+   pnpx prisma generate
    ```
 
 5. **(Optional) Seed Initial Data**
    ```bash
-   npx prisma db seed
+   pnpx prisma db seed
    ```
 
 6. **Start Development Server**
