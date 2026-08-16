@@ -156,10 +156,10 @@ export default function Main() {
             <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <Tabs defaultValue="all" onValueChange={setActiveTab}>
                     <TabsList variant={"pill"} className='md:py-5 md:px-1.5'>
-                        <TabsTrigger value="all" className='md:p-4  text-[12px]'>All ({statData.total})</TabsTrigger>
-                        <TabsTrigger value="open" className='md:p-4 text-[12px]'>Open ({statData.open})</TabsTrigger>
-                        <TabsTrigger value="in_progress" className='md:p-4 text-[12px]'>In Progress ({statData.inProgress})</TabsTrigger>
-                        <TabsTrigger value="closed" className='md:p-4 text-[12px]'>Closed ({statData.closed})</TabsTrigger>
+                        <TabsTrigger value="all" className='md:p-4  text-[12px] md:text-[14px]'>All ({statData.total})</TabsTrigger>
+                        <TabsTrigger value="open" className='md:p-4 text-[12px] md:text-[14px]'>Open ({statData.open})</TabsTrigger>
+                        <TabsTrigger value="in_progress" className='md:p-4 text-[12px] md:text-[14px]'>In Progress ({statData.inProgress})</TabsTrigger>
+                        <TabsTrigger value="closed" className='md:p-4 text-[12px] md:text-[14px]'>Closed ({statData.closed})</TabsTrigger>
 
                     </TabsList>
                 </Tabs>
