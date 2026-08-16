@@ -1,4 +1,4 @@
-import { IBM_Plex_Sans } from "next/font/google"
+import { IBM_Plex_Sans, Playwrite_IN } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -9,6 +9,10 @@ import { Toaster } from "@/components/ui/toast"
 import { Metadata } from "next";
 
 const ibmPlexSans = IBM_Plex_Sans({ subsets: ['latin'], variable: '--font-sans', preload:false })
+const playwriteIn = Playwrite_IN({ 
+  weight: ['100', '200', '300', '400'], 
+  variable: '--font-playwrite', 
+})
 
 export const metadata: Metadata = {
   title: {
@@ -60,7 +64,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning={true}
-      className={cn("antialiased", ibmPlexSans.variable)}
+      className={cn("antialiased", ibmPlexSans.variable, playwriteIn.variable)}
     >
       <body>
 

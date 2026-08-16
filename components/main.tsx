@@ -155,11 +155,11 @@ export default function Main() {
             {/* Tabs + Search */}
             <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <Tabs defaultValue="all" onValueChange={setActiveTab}>
-                    <TabsList variant={"pill"} className='py-5 px-1.5'>
-                        <TabsTrigger value="all" className='p-4'>All ({statData.total})</TabsTrigger>
-                        <TabsTrigger value="open" className='p-4'>Open ({statData.open})</TabsTrigger>
-                        <TabsTrigger value="in_progress" className='p-4'>In Progress ({statData.inProgress})</TabsTrigger>
-                        <TabsTrigger value="closed" className='p-4'>Closed ({statData.closed})</TabsTrigger>
+                    <TabsList variant={"pill"} className='md:py-5 md:px-1.5'>
+                        <TabsTrigger value="all" className='md:p-4  text-[12px]'>All ({statData.total})</TabsTrigger>
+                        <TabsTrigger value="open" className='md:p-4 text-[12px]'>Open ({statData.open})</TabsTrigger>
+                        <TabsTrigger value="in_progress" className='md:p-4 text-[12px]'>In Progress ({statData.inProgress})</TabsTrigger>
+                        <TabsTrigger value="closed" className='md:p-4 text-[12px]'>Closed ({statData.closed})</TabsTrigger>
 
                     </TabsList>
                 </Tabs>

@@ -210,3 +210,7 @@
 .dark .logo-invert {
   filter: invert(1); /* Inverts black to white, but red stays red! */
 }
+
+.font-playwrite {
+  font-family: var(--font-playwrite);
+}
