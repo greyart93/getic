@@ -81,9 +81,9 @@ export default function NavBar({ closeSidebar }: NavBarProps) {
 
                         {/* Tooltip Content */}
                         <TooltipContent sideOffset={5} side="top" className="text-sm font-medium shadow-md px-3 py-2">
-                            <p className="flex items-center gap-1.5">
+                         <p className="flex items-center gap-1.5">
                                 Made with <span className="text-red-500">❤️</span> by <i className="font-serif font-extralight tracking-tight">Saud Mullaji</i>
-                            </p>
+    </p>
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
