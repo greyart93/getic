@@ -76,40 +76,8 @@ It provides support engineering teams with an intuitive, centralized dashboard t
 
 ### System Architecture
 
-```mermaid
-flowchart TD
-    subgraph Client["Client Layer (Browser)"]
-        UI["React 19 Components (App Router Pages)"]
-        Store["Zustand State Store (lib/store.ts)"]
-        Toast["Toast Notification Feedback"]
-    end
 
-    subgraph API["Next.js 16 Serverless API Routes"]
-        Tickets["/api/tickets — GET, POST, DELETE"]
-        TicketById["/api/tickets/[id] — PATCH, DELETE"]
-        TicketNotes["/api/tickets/[id]/notes — GET, POST"]
-        Notes["/api/notes — GET, POST"]
-    end
-
-    subgraph Data["Data Layer"]
-        Prisma["Prisma ORM Client (v7)"]
-        Adapter["@prisma/adapter-pg (pg Pool)"]
-        DB[("PostgreSQL — Neon Serverless")]
-    end
-
-    UI <--> Store
-    Store --> Toast
-    Store <-->|HTTP JSON REST| Tickets
-    Store <-->|HTTP JSON REST| TicketById
-    Store <-->|HTTP JSON REST| TicketNotes
-    Store <-->|HTTP JSON REST| Notes
-    Tickets <--> Prisma
-    TicketById <--> Prisma
-    TicketNotes <--> Prisma
-    Notes <--> Prisma
-    Prisma <--> Adapter
-    Adapter <-->|TLS Connection| DB
-```
+![Conceptual Design](./public/conceptual_diagram.png)
 
 ### End-to-End Data Flow
 
