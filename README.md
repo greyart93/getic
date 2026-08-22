@@ -1,34 +1,47 @@
-# Getic — Customer Support & Ticket Management Platform
+# Getic — Support Ticket Management Platform
 
-> A high-performance, enterprise-grade Customer Support & Helpdesk platform designed for modern support teams. Built with Next.js 16, React 19, Prisma ORM 7, PostgreSQL, TanStack Table, and Zustand.
-
----
-
-## 📌 Overview (What is it?)
-
-**Getic** is a full-stack Customer Support Ticket Management system crafted to streamline helpdesk workflows, track customer inquiries, and maintain internal audit notes in real time.
-
-It provides support engineering teams with an intuitive, centralized dashboard to monitor incoming requests, manage ticket lifecycles (Open → In Progress → Closed), execute bulk operations, and add internal collaborator notes without cluttering the customer interaction.
+> A modern, full-stack Customer Support ticketing dashboard built with Next.js 16, React 19, PostgreSQL, and Tailwind CSS. Manage ticket lifecycles, search across thousands of records, and collaborate with your team—all from a single, fast, and responsive interface.
 
 ---
 
-## 🎯 Key Functionalities (What it does)
+## 📌 Why I Built This
 
-- **Automated Ticket Sequential ID Generation**: Automatically assigns human-readable, sequence-padded ticket identifiers (e.g., `TKT-001`, `TKT-002`) upon creation.
-- **Full Ticket Lifecycle Management**: Full CRUD capabilities to create, view, update status/details, single delete, and bulk delete support requests.
-- **Advanced Interactive Data Table**: Powered by `@tanstack/react-table` v9 with:
-  - Multi-column global search & filtering (by ticket ID, customer name, email, or subject).
-  - Multi-row selection for batch operations (e.g., bulk ticket deletion).
-  - Column visibility toggling.
-  - Sortable columns with a sticky header, and customized pagination control.
-- **Internal Note & Audit Trail System**: Dedicated notes modal allowing support agents to log internal observations, activity timestamps, and resolution steps for any ticket.
-- **Optimistic State Management**: Powered by Zustand v5 for zero-latency UI updates with automatic background database synchronization and error fallback rollback.
-- **Real-Time Toast Notifications**: Interactive, styled toast notification feedback for pending operations, success states, and error handling.
-- **Theme Customization**: Fluid dark and light mode switching supported natively via `next-themes`.
+Support teams need a clean, centralized place to track incoming issues, update statuses, and document internal notes.
+
+Most ticketing tools are bloated, slow, or require expensive subscriptions. I built **Getic** to solve the core problem of *"How do we manage, organize, and resolve support tickets efficiently without the clutter?"*
+
+This project was built from scratch to demonstrate **end-to-end full-stack development**: from designing the PostgreSQL schema, to building REST APIs, to crafting a modern, interactive UI.
 
 ---
 
-## ## 🖼️ Application Screenshots
+## ✨ Key Features
+
+### 📝 Create, View, Edit & Delete Tickets
+- Full lifecycle management with auto-generated sequential IDs (e.g., `TKT-001`).
+
+### 📊 Interactive Data Table
+- Powered by **TanStack Table v9**:
+  - Global search across ID, subject, customer name, and email.
+  - Sortable columns with a sticky header.
+  - Multi-select row checkboxes for bulk deletion.
+  - Pagination control (rows per page).
+
+### 🔍 Filter by Status
+- Instantly switch between all, open, in-progress, and closed tickets.
+
+### 💬 Internal Notes System
+- Add private notes to any ticket. Deleting a ticket automatically removes its associated notes (cascading delete).
+
+### ⚡ Optimistic UI with Real-time Toasts
+- Updates happen instantly in the UI (Zustand), and the database syncs in the background.
+- Success/Error feedback is shown via styled toasts.
+
+### 🌙 Light & Dark Mode
+- Smooth, native theme switching powered by `next-themes`.
+
+---
+
+## 🖼️ Application Screenshots
 
 <!-- IMAGE SECTION: --->
 
@@ -79,13 +92,15 @@ It provides support engineering teams with an intuitive, centralized dashboard t
 
 ![Conceptual Design](./public/conceptual_diagram.png)
 
-### End-to-End Data Flow
+ ## 🏗️ Architecture
 
-1. **User Action**: User performs an action in the browser (e.g., creates a ticket, updates ticket status, or posts an internal note).
-2. **Optimistic Store Dispatch**: `useTicketStore` immediately updates the client-side state reactively and triggers a loading toast notification.
-3. **API Invocation**: The store sends an asynchronous REST request (`POST`, `PATCH`, or `DELETE`) to the corresponding Next.js Route Handler.
-4. **ORM Processing**: The Route Handler invokes Prisma ORM 7, which routes SQL queries through the `@prisma/adapter-pg` pooler to Neon PostgreSQL.
-5. **Reconciliation**: On a successful API response, the store syncs server-generated metadata (e.g., generated `ticketId`, database `createdAt` timestamps) and updates the toast to success. If an error occurs, state is rolled back and an error toast is displayed.
+### High-Level Flow
+
+1. **User interacts** with the UI (creates a ticket, changes status, adds a note).
+2. **Zustand store** immediately updates the local state (optimistic UI) and triggers an API request.
+3. **Next.js API Route** validates the request (Zod) and queries the database using **Prisma ORM**.
+4. **PostgreSQL** saves the record. The store syncs the server response back to the UI.
+5. If the request fails, the UI **rolls back** the optimistic change and shows an error toast.
 
 ---
 
@@ -493,48 +508,27 @@ Global endpoint to post an internal note by supplying `ticketId` in the JSON req
   "createdAt": "2026-08-14T11:32:00.000Z"
 }
 ```
-
----
-
 ## ⚡ Challenges Faced and Solved
 
-### 1. Next.js 16 Dynamic Route Parameter Handling (`Promise<{ id: string }>`)
+### 1. Sorting was broken on the first click (TanStack Table v9)
+- **Problem:** TanStack v9 requires explicit feature registration. Without the right row model, clicking a header updated the UI but didn't actually sort the data.
+- **Solution:** Manually registered `sortedRowModel: createSortedRowModel()` and `sortFns` in my table features config, and built a reusable `SortableHeader` component for consistent behavior.
 
-- **Challenge**: Next.js 16 introduced a breaking API change where dynamic route params in Route Handlers are passed as a `Promise` (`{ params }: { params: Promise<{ id: string }> }`). Direct synchronous access (`params.id`) led to runtime errors and parameter resolution failures.
-- **Solution**: Updated all route handlers (`app/api/tickets/[id]/route.ts` and `app/api/tickets/[id]/notes/route.ts`) to properly `await params` before accessing parameter values.
+### 2. Sticky table header didn't stick
+- **Problem:** The default Shadcn table wrapper has a nested `overflow-x-auto` container, which breaks `position: sticky` on the header.
+- **Solution:** Consolidated the table into a single scroll container and applied `sticky top-0 z-10` directly to the `<thead>`.
 
-### 2. Formatted Auto-Increment Ticket Identifiers (`TKT-001`)
+### 3. Next.js 16 changed API params to a Promise
+- **Problem:** Dynamic route params (`params.id`) are now returned as a Promise, causing runtime errors in my API handlers.
+- **Solution:** Updated all route handlers to use `{ params }: { params: Promise<{ id: string }> }` and properly `await params` before accessing data.
 
-- **Challenge**: Standard SQL integer primary keys (1, 2, 3) lack visual domain clarity, while raw strings don't naturally sequence. The application needed human-readable, auto-padded codes (`TKT-001`, `TKT-002`) with unique database constraints.
-- **Solution**: Implemented a two-step transaction pattern in the ticket creation API route: create the record to obtain the autoincrement primary key `id`, then compute `ticketId = TKT-${String(id).padStart(3, '0')}` and update the record before returning the response.
+### 4. Auto-generating clean `TKT-001` IDs
+- **Problem:** Standard integer primary keys (1, 2, 3) lack domain context.
+- **Solution:** Implemented a pattern where the auto-increment `id` is fetched first, then mapped to `TKT-${String(id).padStart(3, '0')}` before returning the response.
 
-### 3. Database Connection Pooling with Prisma ORM 7 & PostgreSQL Driver Adapter
-
-- **Challenge**: Prisma ORM 7 requires explicit driver adapter configuration when connecting to PostgreSQL serverless pools (like Neon), to prevent connection exhaustion during concurrent serverless API executions.
-- **Solution**: Integrated `@prisma/adapter-pg` with `pg.Pool` inside a global singleton initialization module (`lib/prisma.ts`), preserving hot-reload efficiency in development while guaranteeing pooled connections in production.
-
-### 4. TanStack Table v9's Opt-In Features Meant Sorting Silently Did Nothing on the First Click
-
-- **Challenge**: Unlike v8, TanStack Table v9 (alpha) doesn't ship sorting by default — `rowSortingFeature`, a `sortedRowModel`, and `sortFns` all have to be explicitly registered in the table's `tableFeatures` config. With only `rowSortingFeature` wired up, clicking a sortable header updated the sort icon and internal state immediately, but the actual row order didn't change until the row model caught up — so it looked like sorting needed two clicks to "work."
-- **Solution**: Explicitly registered `sortedRowModel: createSortedRowModel()` and `sortFns` alongside `rowSortingFeature` in the shared table features config, and built a single reusable `SortableHeader` component so every column (not just one) gets consistent, working sort behavior on the first click.
-
-### 5. Sticky Table Header Silently Broken by a Nested `overflow-x-auto` Container
-
-- **Challenge**: shadcn/ui's `<Table>` primitive wraps the `<table>` element in its own internal div set to `overflow-x-auto`. Setting `overflow-x` to anything other than `visible` forces the browser to implicitly compute `overflow-y: auto` too — creating a second, nested scroll container inside the page's own scrollable wrapper. `position: sticky` on the `<thead>` was anchoring to that inner, non-scrolling div instead of the actual scrolling ancestor, so the header just scrolled away with the rest of the table instead of sticking.
-- **Solution**: Extended the shared `Table` component to accept a `containerClassName` prop and consolidated the layout to a single scroll container (removed the redundant outer wrapper div), so `sticky top-0` now correctly anchors to the one element that actually scrolls.
-
-### 6. Zero-Latency Optimistic State Synchronization & Fallback Rollbacks
-
-- **Challenge**: Synchronous database network delays hurt UI responsiveness during frequent operations like updating ticket statuses, deleting items, or adding notes.
-- **Solution**: Designed the Zustand state store (`lib/store.ts`) with optimistic state updates. Actions immediately modify local UI state and emit loading toasts. If the underlying REST fetch succeeds, metadata is synchronized; if it fails, state changes are rolled back and an error toast is dispatched.
-
-### 7. Cascading Relational Deletes for Internal Notes
-
-- **Challenge**: Deleting tickets that had associated internal notes threw foreign key violation exceptions (`PG::ForeignKeyViolation`) in PostgreSQL.
-- **Solution**: Applied relational cascade deletion rules in `prisma/schema.prisma` (`ticket Ticket @relation(..., onDelete: Cascade)`). Deleting a ticket now automatically cleans up associated note records without orphan data.
-
----
-
+### 5. Optimistic state without complex side effects
+- **Problem:** Network latency made the UI feel sluggish when updating statuses or deleting items.
+- **Solution:** Built a Zustand store with optimistic updates. The UI changes instantly, and if the server responds with an error, the state is automatically rolled back.
 ## 🚀 Getting Started
 
 ### Prerequisites
