@@ -199,7 +199,7 @@ classDiagram
 
     Ticket "1" -- "0..*" Note : has many (Cascade Delete)
  -->
-![class](.\public\class_diagram.png)
+![class](./public/class_diagram.png)
 
 ### Sequence Diagram
 <!--
