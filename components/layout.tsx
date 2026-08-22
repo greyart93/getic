@@ -8,7 +8,6 @@ import NavBar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { TicketFormDialog } from "@/components/ticket-form-dialog";
 import { useTicketStore } from "@/lib/store";
-import { Toaster, toast } from "@/components/ui/toast";
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -30,7 +29,6 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
   };
 
   return (
-    <Toaster>
     <div className="min-h-[90svh] border-2 m-0 md:m-3 rounded-xl flex border-transparent md:border-border p-0 overflow-hidden">
       {/* Sidebar */}
       <div
@@ -111,6 +109,5 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
         onSave={handleCreateTicket}
       />
     </div>
-    </Toaster>
   );
 }

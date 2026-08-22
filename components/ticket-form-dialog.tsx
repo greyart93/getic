@@ -164,7 +164,7 @@ export function TicketFormDialog({
               placeholder="Describe the issue in detail..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className={`min-h-[100px] resize-none ${errors.description ? "border-destructive focus-visible:ring-destructive" : ""}`}
+              className={`min-h-25 resize-none ${errors.description ? "border-destructive focus-visible:ring-destructive" : ""}`}
             />
             {errors.description && (
               <span className="text-xs font-medium text-destructive">{errors.description}</span>
@@ -183,4 +183,4 @@ export function TicketFormDialog({
       </DialogContent>
     </Dialog>
   )
-}
+}

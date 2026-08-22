@@ -7,7 +7,7 @@ interface TicketStore {
   tickets: Ticket[]
   isLoading: boolean
   error: string | null
-  
+
   // Actions
   fetchTickets: () => Promise<void>
   addTicket: (ticketData: Partial<Ticket>) => Promise<void> // ✅ Changed to Partial
@@ -30,45 +30,45 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       const res = await fetch('/api/tickets')
       if (!res.ok) throw new Error('Failed to fetch tickets')
       const data = await res.json()
-      
+
       // 👇 Map the data and format dates/notes
       const formattedData = data.map((ticket: any) => ({
         ...ticket,
         date: ticket.createdAt
           ? new Date(ticket.createdAt).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric'
-            })
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          })
           : ticket.date,
         createdAt: ticket.createdAt
           ? new Date(ticket.createdAt).toLocaleString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
           : undefined,
         updatedAt: ticket.updatedAt
           ? new Date(ticket.updatedAt).toLocaleString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
           : undefined,
         notes: (ticket.notes || []).map((n: any) => ({
           ...n,
           createdAt: n.createdAt
             ? new Date(n.createdAt).toLocaleString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
             : undefined
         }))
       }))
@@ -99,27 +99,47 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
         }),
       })
       if (!res.ok) throw new Error('Failed to create ticket')
-      
+
       const newTicket = await res.json()
-      
+
       // 👇 Format the date for the new ticket
+      // Inside lib/store.ts -> addTicket
+
       const formattedTicket = {
         ...newTicket,
         date: newTicket.createdAt
           ? new Date(newTicket.createdAt).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric'
-            })
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          })
           : new Date().toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric'
-            }),
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          }),
+        // 👇 ADD THESE TWO LINES
+        createdAt: newTicket.createdAt
+          ? new Date(newTicket.createdAt).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+          : undefined,
+        updatedAt: newTicket.updatedAt
+          ? new Date(newTicket.updatedAt).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+          : undefined,
       }
-
       set((state) => ({ tickets: [formattedTicket, ...state.tickets] }))
-      
+
       toast.update(toastId, {
         type: 'success',
         title: 'Ticket Created',
@@ -157,7 +177,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
     // Optimistic update
     set((state) => ({
-      tickets: state.tickets.map(t => 
+      tickets: state.tickets.map(t =>
         t.id === id ? { ...t, status: newStatus, updatedAt: nowFormatted } : t
       )
     }))
@@ -173,12 +193,12 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       const updated = await res.json()
       const formattedUpdatedAt = updated.updatedAt
         ? new Date(updated.updatedAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
         : nowFormatted
 
       set((state) => ({
@@ -223,7 +243,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
     // Optimistic update
     set((state) => ({
-      tickets: state.tickets.map(t => 
+      tickets: state.tickets.map(t =>
         t.id === id ? { ...t, ...updates, updatedAt: nowFormatted } : t
       )
     }))
@@ -239,12 +259,12 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       const updated = await res.json()
       const formattedUpdatedAt = updated.updatedAt
         ? new Date(updated.updatedAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
         : nowFormatted
 
       set((state) => ({
@@ -378,19 +398,19 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
         ...newNote,
         createdAt: newNote.createdAt
           ? new Date(newNote.createdAt).toLocaleString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
           : new Date().toLocaleString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
       }
 
       const nowFormatted = new Date().toLocaleString('en-GB', {
@@ -405,10 +425,10 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
         tickets: state.tickets.map((t) =>
           t.id === ticketId
             ? {
-                ...t,
-                updatedAt: nowFormatted,
-                notes: [formattedNote, ...(t.notes || [])],
-              }
+              ...t,
+              updatedAt: nowFormatted,
+              notes: [formattedNote, ...(t.notes || [])],
+            }
             : t
         ),
       }))
