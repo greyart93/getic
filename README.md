@@ -529,6 +529,15 @@ Global endpoint to post an internal note by supplying `ticketId` in the JSON req
 ### 5. Optimistic state without complex side effects
 - **Problem:** Network latency made the UI feel sluggish when updating statuses or deleting items.
 - **Solution:** Built a Zustand store with optimistic updates. The UI changes instantly, and if the server responds with an error, the state is automatically rolled back.
+
+---
+
+## To Do:
+- Only fetch data based on the pagination and no. of rows selected
+- Make the globalSearch fetch data from database
+- Implement Debouncing on globalSearch
+- Add auth
+  
 ## 🚀 Getting Started
 
 ### Prerequisites
