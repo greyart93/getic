@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X, Plus } from "lucide-react";
+import { Menu, X, Plus, PanelLeft } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { ThemeToggle } from "./ui/toggle-theme";
 import NavBar from "@/components/navbar";
@@ -69,7 +69,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
             className="md:hidden p-2 rounded-md hover:bg-accent mr-auto"
             aria-label="Toggle sidebar"
           >
-            {isSidebarOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {isSidebarOpen ? <X className="size-5" /> : <PanelLeft className="size-5" />}
           </button>
 
           {/* Desktop Toggle */}
@@ -78,7 +78,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
             className="hidden md:flex p-2 rounded-md hover:bg-accent mr-auto"
             aria-label="Toggle sidebar"
           >
-            <Menu className="size-5" />
+            <PanelLeft className="size-5" />
           </button>
 
           <div className="flex items-center gap-2">
