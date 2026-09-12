@@ -2,6 +2,8 @@
 > A modern, full-stack Customer Support ticketing dashboard built with Next.js 16, React 19, PostgreSQL, and Tailwind CSS. Manage ticket lifecycles, search across thousands of records, and collaborate with your team—all from a single, fast, and responsive interface.
 
 ---
+# Description: 
+Getic is a lightweight, full-stack helpdesk built for teams who are tired of paying enterprise prices for basic ticket tracking. Built with Next.js 16, PostgreSQL, and Tailwind, it handles the full ticket lifecycle—creation, status flow, bulk actions, and internal team notes—through a fast, keyboard-friendly data table. Updates feel instant thanks to optimistic UI and Zustand state, with automatic rollback on failure. No bloat, no subscriptions, just a clean workspace to get issues resolved.
 
 ## 📌 Why I Built This
 
