@@ -1,5 +1,5 @@
 # Getic — Support Ticket Management Platform
-
+TLDR;
 > A modern, full-stack Customer Support ticketing dashboard built with Next.js 16, React 19, PostgreSQL, and Tailwind CSS. Manage ticket lifecycles, search across thousands of records, and collaborate with your team—all from a single, fast, and responsive interface.
 
 ---
