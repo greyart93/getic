@@ -1,24 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// 👇 Helper function to format dates consistently
-const formatDate = (date: Date) => {
-  return new Date(date).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  })
-}
-
-const formatDateTime = (date: Date) => {
-  return new Date(date).toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+// NOTE: Dates are returned as raw ISO 8601 UTC strings. All timezone conversion
+// and formatting happens client-side (see lib/datetime.ts) so users always see
+// the time in their own timezone, regardless of the server's (Vercel = UTC).
 
 export async function POST(request: Request) {
   try {
@@ -42,15 +27,8 @@ export async function POST(request: Request) {
       data: { ticketId },
     })
 
-    // 👇 Format dates before sending to frontend
-    const formattedTicket = {
-      ...newTicket,
-      date: formatDate(newTicket.createdAt),
-      createdAt: formatDateTime(newTicket.createdAt),
-      updatedAt: formatDateTime(newTicket.updatedAt),
-    }
-
-    return NextResponse.json(formattedTicket, { status: 201 })
+    // 👇 Send raw dates; client formats them in its own timezone
+    return NextResponse.json(newTicket, { status: 201 })
   } catch (error) {
     console.error('❌ Error creating ticket:', error)
     return NextResponse.json(
@@ -71,19 +49,8 @@ export async function GET() {
       },
     })
 
-    // 👇 Map through all tickets and format their dates
-    const formattedTickets = tickets.map((ticket) => ({
-      ...ticket,
-      date: formatDate(ticket.createdAt),
-      createdAt: formatDateTime(ticket.createdAt),
-      updatedAt: formatDateTime(ticket.updatedAt),
-      notes: ticket.notes.map((note) => ({
-        ...note,
-        createdAt: formatDateTime(note.createdAt),
-      })),
-    }))
-
-    return NextResponse.json(formattedTickets)
+    // 👇 Send raw dates; client formats them in its own timezone
+    return NextResponse.json(tickets)
   } catch (error) {
     console.error('❌ Error fetching tickets:', error)
     return NextResponse.json({ error: 'Failed to fetch tickets' }, { status: 500 })

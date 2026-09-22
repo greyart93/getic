@@ -1,7 +1,7 @@
-// lib/store.ts
 import { create } from 'zustand'
 import { Ticket } from '@/app/_data/tempdata'
 import { toast } from '@/components/ui/toast'
+import { formatDate, formatDateTime } from '@/lib/datetime'
 
 interface TicketStore {
   tickets: Ticket[]
@@ -31,45 +31,16 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       if (!res.ok) throw new Error('Failed to fetch tickets')
       const data = await res.json()
 
-      // 👇 Map the data and format dates/notes
+      // 👇 Dates arrive as raw ISO UTC strings from the API — format them
+      // client-side so they show in the user's local timezone
       const formattedData = data.map((ticket: any) => ({
         ...ticket,
-        date: ticket.createdAt
-          ? new Date(ticket.createdAt).toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          })
-          : ticket.date,
-        createdAt: ticket.createdAt
-          ? new Date(ticket.createdAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-          : undefined,
-        updatedAt: ticket.updatedAt
-          ? new Date(ticket.updatedAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-          : undefined,
+        date: formatDate(ticket.createdAt) || ticket.date,
+        createdAt: ticket.createdAt ? formatDateTime(ticket.createdAt) : undefined,
+        updatedAt: ticket.updatedAt ? formatDateTime(ticket.updatedAt) : undefined,
         notes: (ticket.notes || []).map((n: any) => ({
           ...n,
-          createdAt: n.createdAt
-            ? new Date(n.createdAt).toLocaleString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })
-            : undefined
+          createdAt: n.createdAt ? formatDateTime(n.createdAt) : undefined
         }))
       }))
 
@@ -102,41 +73,12 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
       const newTicket = await res.json()
 
-      // 👇 Format the date for the new ticket
-      // Inside lib/store.ts -> addTicket
-
+      // 👇 Format the dates client-side for the new ticket
       const formattedTicket = {
         ...newTicket,
-        date: newTicket.createdAt
-          ? new Date(newTicket.createdAt).toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          })
-          : new Date().toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          }),
-        // 👇 ADD THESE TWO LINES
-        createdAt: newTicket.createdAt
-          ? new Date(newTicket.createdAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-          : undefined,
-        updatedAt: newTicket.updatedAt
-          ? new Date(newTicket.updatedAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-          : undefined,
+        date: formatDate(newTicket.createdAt) || formatDate(new Date()),
+        createdAt: formatDateTime(newTicket.createdAt) || undefined,
+        updatedAt: formatDateTime(newTicket.updatedAt) || undefined,
       }
       set((state) => ({ tickets: [formattedTicket, ...state.tickets] }))
 
@@ -167,13 +109,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       description: `Updating status to ${newStatus}...`,
     })
 
-    const nowFormatted = new Date().toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const nowFormatted = formatDateTime(new Date())
 
     // Optimistic update
     set((state) => ({
@@ -192,13 +128,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
       const updated = await res.json()
       const formattedUpdatedAt = updated.updatedAt
-        ? new Date(updated.updatedAt).toLocaleString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+        ? formatDateTime(updated.updatedAt)
         : nowFormatted
 
       set((state) => ({
@@ -233,13 +163,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       description: 'Saving ticket updates...',
     })
 
-    const nowFormatted = new Date().toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const nowFormatted = formatDateTime(new Date())
 
     // Optimistic update
     set((state) => ({
@@ -258,13 +182,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
       const updated = await res.json()
       const formattedUpdatedAt = updated.updatedAt
-        ? new Date(updated.updatedAt).toLocaleString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+        ? formatDateTime(updated.updatedAt)
         : nowFormatted
 
       set((state) => ({
@@ -396,30 +314,11 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
       const formattedNote = {
         ...newNote,
-        createdAt: newNote.createdAt
-          ? new Date(newNote.createdAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-          : new Date().toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
+        createdAt:
+          formatDateTime(newNote.createdAt) || formatDateTime(new Date()),
       }
 
-      const nowFormatted = new Date().toLocaleString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      const nowFormatted = formatDateTime(new Date())
 
       set((state) => ({
         tickets: state.tickets.map((t) =>

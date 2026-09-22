@@ -1,24 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// 👇 Helper functions (copy these from your main route if they are in a separate file)
-const formatDate = (date: Date) => {
-  return new Date(date).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  })
-}
-
-const formatDateTime = (date: Date) => {
-  return new Date(date).toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+// NOTE: Dates are returned as raw ISO 8601 UTC strings. All timezone conversion
+// and formatting happens client-side (see lib/datetime.ts) so users always see
+// the time in their own timezone, regardless of the server's (Vercel = UTC).
 
 export async function PATCH(
   request: Request,
@@ -42,15 +27,8 @@ export async function PATCH(
       },
     })
 
-    // 👇 Format the dates before sending to frontend
-    const formattedTicket = {
-      ...updated,
-      date: formatDate(updated.createdAt),
-      createdAt: formatDateTime(updated.createdAt),
-      updatedAt: formatDateTime(updated.updatedAt),
-    }
-
-    return NextResponse.json(formattedTicket)
+    // 👇 Send raw dates; client formats them in its own timezone
+    return NextResponse.json(updated)
   } catch (error) {
     console.error('❌ Error updating ticket:', error)
     return NextResponse.json({ error: 'Failed to update ticket' }, { status: 500 })
