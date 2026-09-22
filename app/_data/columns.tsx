@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { type DataTableFeatures } from "./data-table-features";
+import { formatDate } from "@/lib/datetime";
 
 
 // 👇 Define the shape of our custom meta locally
@@ -125,8 +126,10 @@ export const columns = columnHelper.columns([
     }
   }),
   
-  columnHelper.accessor("date", {
+  columnHelper.accessor((row) => row.createdAt ?? row.date, {
+    id: "date",
     header: ({ column }) => <SortableHeader column={column} title="Date" />,
+    cell: ({ getValue }) => formatDate(getValue()),
   }),
   columnHelper.display({
     id: "actions",

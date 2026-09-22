@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { MessageSquarePlus, StickyNote, Clock } from "lucide-react"
+import { formatDateTime } from "@/lib/datetime"
 
 interface TicketNoteDialogProps {
   open: boolean
@@ -102,7 +103,7 @@ export function TicketNoteDialog({
                 {ticket.notes.map((n) => (
                   <div key={n.id} className="p-2.5 rounded border bg-muted/30 text-xs">
                     <div className="text-[10px] text-muted-foreground mb-1">
-                      {n.createdAt || "Previous Note"}
+                      {formatDateTime(n.createdAt) || "Previous Note"}
                     </div>
                     <p className="whitespace-pre-wrap">{n.notesText}</p>
                   </div>

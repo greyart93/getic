@@ -80,16 +80,26 @@ export default function DashboardPage() {
             .sort((a, b) => b.tickets - a.tickets)
             .slice(0, 5); // Top 5
 
-        // Group by Date for Timeline
-        const dateMap: Record<string, number> = {};
+        // Group by real calendar day (local timezone) for Timeline
+        const dateMap = new Map<number, { date: string; count: number; ts: number }>();
         tickets.forEach(t => {
-            let d = t.createdAt || t.date || "Unknown";
-            if (d.includes(",")) d = d.split(",")[0];
-            dateMap[d] = (dateMap[d] || 0) + 1;
+            if (!t.createdAt) return;
+            const d = new Date(t.createdAt);
+            if (isNaN(d.getTime())) return;
+            const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+            const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+            const existing = dateMap.get(ts);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                dateMap.set(ts, { date: label, count: 1, ts });
+            }
         });
-        const timelineData = Object.entries(dateMap)
-            .map(([date, count]) => ({ date, count }))
-            .slice(-7); // Last 7 unique dates
+        // 👇 Sort chronologically, then keep the last 7 days
+        const timelineData = [...dateMap.values()]
+            .sort((a, b) => a.ts - b.ts)
+            .slice(-7)
+            .map(({ date, count }) => ({ date, count }));
 
         return { cardData, statusData, customerData, timelineData };
     }, [tickets]);

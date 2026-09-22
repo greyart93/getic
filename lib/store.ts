@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { Ticket } from '@/app/_data/tempdata'
 import { toast } from '@/components/ui/toast'
-import { formatDate, formatDateTime } from '@/lib/datetime'
 
 interface TicketStore {
   tickets: Ticket[]
@@ -31,20 +30,9 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       if (!res.ok) throw new Error('Failed to fetch tickets')
       const data = await res.json()
 
-      // 👇 Dates arrive as raw ISO UTC strings from the API — format them
-      // client-side so they show in the user's local timezone
-      const formattedData = data.map((ticket: any) => ({
-        ...ticket,
-        date: formatDate(ticket.createdAt) || ticket.date,
-        createdAt: ticket.createdAt ? formatDateTime(ticket.createdAt) : undefined,
-        updatedAt: ticket.updatedAt ? formatDateTime(ticket.updatedAt) : undefined,
-        notes: (ticket.notes || []).map((n: any) => ({
-          ...n,
-          createdAt: n.createdAt ? formatDateTime(n.createdAt) : undefined
-        }))
-      }))
-
-      set({ tickets: formattedData, isLoading: false })
+      // 👇 Dates stay as raw ISO UTC strings — components format them at
+      // render time (see lib/datetime.ts) so users see their own timezone
+      set({ tickets: data, isLoading: false })
     } catch (error: any) {
       set({ error: error.message, isLoading: false })
     }
@@ -73,14 +61,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
       const newTicket = await res.json()
 
-      // 👇 Format the dates client-side for the new ticket
-      const formattedTicket = {
-        ...newTicket,
-        date: formatDate(newTicket.createdAt) || formatDate(new Date()),
-        createdAt: formatDateTime(newTicket.createdAt) || undefined,
-        updatedAt: formatDateTime(newTicket.updatedAt) || undefined,
-      }
-      set((state) => ({ tickets: [formattedTicket, ...state.tickets] }))
+      set((state) => ({ tickets: [newTicket, ...state.tickets] }))
 
       toast.update(toastId, {
         type: 'success',
@@ -109,12 +90,10 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       description: `Updating status to ${newStatus}...`,
     })
 
-    const nowFormatted = formatDateTime(new Date())
-
-    // Optimistic update
+    // Optimistic update (updatedAt refreshed from the API response)
     set((state) => ({
       tickets: state.tickets.map(t =>
-        t.id === id ? { ...t, status: newStatus, updatedAt: nowFormatted } : t
+        t.id === id ? { ...t, status: newStatus } : t
       )
     }))
 
@@ -127,13 +106,10 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       if (!res.ok) throw new Error('Failed to update ticket status')
 
       const updated = await res.json()
-      const formattedUpdatedAt = updated.updatedAt
-        ? formatDateTime(updated.updatedAt)
-        : nowFormatted
 
       set((state) => ({
         tickets: state.tickets.map(t =>
-          t.id === id ? { ...t, updatedAt: formattedUpdatedAt } : t
+          t.id === id ? { ...t, updatedAt: updated.updatedAt } : t
         )
       }))
 
@@ -163,12 +139,10 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       description: 'Saving ticket updates...',
     })
 
-    const nowFormatted = formatDateTime(new Date())
-
-    // Optimistic update
+    // Optimistic update (updatedAt refreshed from the API response)
     set((state) => ({
       tickets: state.tickets.map(t =>
-        t.id === id ? { ...t, ...updates, updatedAt: nowFormatted } : t
+        t.id === id ? { ...t, ...updates } : t
       )
     }))
 
@@ -181,13 +155,10 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       if (!res.ok) throw new Error('Failed to update ticket')
 
       const updated = await res.json()
-      const formattedUpdatedAt = updated.updatedAt
-        ? formatDateTime(updated.updatedAt)
-        : nowFormatted
 
       set((state) => ({
         tickets: state.tickets.map(t =>
-          t.id === id ? { ...t, ...updated, updatedAt: formattedUpdatedAt } : t
+          t.id === id ? { ...t, ...updated, updatedAt: updated.updatedAt } : t
         )
       }))
 
@@ -312,21 +283,13 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       if (!res.ok) throw new Error('Failed to add note')
       const newNote = await res.json()
 
-      const formattedNote = {
-        ...newNote,
-        createdAt:
-          formatDateTime(newNote.createdAt) || formatDateTime(new Date()),
-      }
-
-      const nowFormatted = formatDateTime(new Date())
-
       set((state) => ({
         tickets: state.tickets.map((t) =>
           t.id === ticketId
             ? {
               ...t,
-              updatedAt: nowFormatted,
-              notes: [formattedNote, ...(t.notes || [])],
+              updatedAt: new Date().toISOString(),
+              notes: [newNote, ...(t.notes || [])],
             }
             : t
         ),

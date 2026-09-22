@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { MessageSquare, Calendar, User, Mail, Hash, Clock, Plus, Send } from "lucide-react"
+import { formatDate, formatDateTime } from "@/lib/datetime"
 
 interface TicketViewDialogProps {
   open: boolean
@@ -113,7 +114,7 @@ export function TicketViewDialog({
             <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground font-medium">Date Created</p>
-              <p className="font-semibold">{ticket.createdAt || ticket.date || "N/A"}</p>
+              <p className="font-semibold">{formatDateTime(ticket.createdAt) || formatDate(ticket.date) || "N/A"}</p>
             </div>
           </div>
 
@@ -121,7 +122,7 @@ export function TicketViewDialog({
             <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground font-medium">Date Updated</p>
-              <p className="font-semibold">{ticket.updatedAt || ticket.createdAt || ticket.date || "N/A"}</p>
+              <p className="font-semibold">{formatDateTime(ticket.updatedAt) || formatDateTime(ticket.createdAt) || formatDate(ticket.date) || "N/A"}</p>
             </div>
           </div>
         </div>
@@ -173,7 +174,7 @@ export function TicketViewDialog({
                 >
                   <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                     <span className="font-medium text-foreground/80">Note #{note.id}</span>
-                    <span>{note.createdAt || "Just now"}</span>
+                    <span>{formatDateTime(note.createdAt) || "Just now"}</span>
                   </div>
                   <p className="text-foreground text-sm whitespace-pre-wrap">{note.notesText}</p>
                 </div>
