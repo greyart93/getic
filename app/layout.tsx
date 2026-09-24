@@ -55,6 +55,12 @@ export const metadata: Metadata = {
   },
 }
 
+//
+// ─── ROOT LAYOUT ──────────────────────────────────────────────────────
+// Wraps every route. Provides: Google fonts as CSS variables (IBM Plex Sans
+// body / Playwrite accents), the dark/light ThemeProvider, and the single
+// <Toaster /> that every toast.add() in the app renders into.
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -63,6 +69,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      // 👇 Required by next-themes: suppresses the React hydration warning
+      //    caused by the theme class being injected before hydration.
       suppressHydrationWarning={true}
       className={cn("antialiased", ibmPlexSans.variable, playwriteIn.variable)}
     >
@@ -70,6 +78,7 @@ export default function RootLayout({
 
         <ThemeProvider>
           {children}</ThemeProvider>
+          {/* 👇 One global toast portal (see components/ui/toast.tsx) */}
           <Toaster />
       </body>
     </html>

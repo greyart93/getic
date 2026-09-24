@@ -1,3 +1,10 @@
+//
+// ─── SIDEBAR NAVIGATION ────────────────────────────────────────────────
+// Simple config-driven nav. Active link detection via usePathname()
+// comparison — works because Tickets is at "/" and Dashboard at "/dashboard".
+// Also closes the mobile sidebar after navigating (closeSidebar callback
+// passed down from layout.tsx).
+
 "use client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LayoutDashboard, Ticket, User, Settings } from 'lucide-react';
@@ -11,6 +18,7 @@ interface NavBarProps {
     closeSidebar?: () => void;
 }
 
+// 👇 Add new pages here; commented-out entries are future scope
 const NavContent = [
     { icon: <LayoutDashboard className="w-4" />, label: 'Dashboard', href: '/dashboard' },
     { icon: <Ticket className="w-4" />, label: 'Tickets', href: '/' },

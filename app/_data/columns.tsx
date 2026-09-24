@@ -16,8 +16,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { type DataTableFeatures } from "./data-table-features";
-import { formatDate } from "@/lib/datetime";
-
+import { formatDate } from "@/lib/datetime";//
+// ─── TABLE COLUMN DEFINITIONS ────────────────────────────────────────────
+// Describes the 6 columns of the tickets table: ID, Subject, Customer,
+// Status, Date, Actions. TanStack Table v9 renders whatever these cells
+// return, so each `cell` is a mini React component.
+//
+// HOW ACTIONS REACH THE OUTSIDE WORLD: cells can't call the zustand store
+// directly (columns are defined once, outside React). Instead data-table.tsx
+// passes callbacks through table `meta` (see its useTable call) and each cell
+// pulls them out via `table.options.meta`. Status change, view, edit, note
+// and delete all follow that same indirection.
 
 // 👇 Define the shape of our custom meta locally
 type TableMetaWithHandler = {
@@ -30,6 +39,8 @@ type TableMetaWithHandler = {
 
 const columnHelper = createColumnHelper<DataTableFeatures, Ticket>()
 
+// Reusable header: clicking toggles asc -> desc sorting (the three icons
+// show unsorted / asc / desc state).
 const SortableHeader = ({ column, title }: { column: any, title: string }) => {
   const sorted = column.getIsSorted();
   return (
@@ -83,6 +94,7 @@ export const columns = columnHelper.columns([
     cell: ({ row, getValue, table }) => {
       const currentStatus = getValue();
 
+      // 👇 Badge color per status; destructive (red) is the fallback for CLOSED
       const getBadgeVariant = (status: string) => {
         if (status === "OPEN") return "default";
         if (status === "IN PROGRESS" || status === "IN_PROGRESS") return "green";
@@ -126,11 +138,18 @@ export const columns = columnHelper.columns([
     }
   }),
   
+  // 👇 DATE column: sorts on the RAW value (ISO strings sort chronologically —
+  //    a happy accident of the format) but DISPLAYS the formatted local date.
+  //    `createdAt ?? date` covers rows from the API (createdAt) and the legacy
+  //    mock rows (date).
   columnHelper.accessor((row) => row.createdAt ?? row.date, {
     id: "date",
     header: ({ column }) => <SortableHeader column={column} title="Date" />,
+    // 👇 Client-side formatting — the viewer's timezone (lib/datetime.ts)
     cell: ({ getValue }) => formatDate(getValue()),
   }),
+  // 👇 ACTIONS column: not sortable/filterable — `display` columns have no
+  //    accessor at all, they're purely visual.
   columnHelper.display({
     id: "actions",
     cell: ({ row, table }) => {
@@ -198,7 +217,9 @@ export const columns = columnHelper.columns([
 ])
 
 
-// Add this at the very bottom of columns.tsx, after the columns array
+// Custom global filter fn (registered in data-table-features.ts). Currently
+// the search box in main.tsx filters the data array BEFORE it reaches the
+// table, so this is only used if you wire table.getColumn('...').setFilterValue.
 export const globalSearchFilter = (row: any, columnId: string, filterValue: string) => {
   const searchValue = filterValue.toLowerCase()
   

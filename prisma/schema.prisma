@@ -3,16 +3,36 @@
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
+//
+// ─── DATABASE SCHEMA ─────────────────────────────────────────────────────────
+// Two tables: Ticket (the support request) and Note (internal agent comments).
+// One ticket has many notes; deleting a ticket cascades and removes its notes.
+//
+
 generator client {
   provider = "prisma-client"
+  // 👇 Custom output: the generated PrismaClient types live in app/generated/prisma
+  //    (checked into git) instead of node_modules. Import like:
+  //    import { PrismaClient } from "../app/generated/prisma"
   output   = "../app/generated/prisma"
 }
 
+// 👇 WHAT: The single Postgres database this app talks to (Neon in prod).
+// 👇 WHY:  No url line here means Prisma reads DATABASE_URL from the environment
+//          (.env locally, Vercel env vars in production).
 datasource db {
   provider = "postgresql"
 }
 
 
+// 👇 WHAT: The main table. One row = one support ticket.
+// 👇 WHY:  `ticketId` is a HUMAN-FRIENDLY display code ("TKT-001") kept separate
+//          from the numeric PK `id`. POST /api/tickets writes it in two steps:
+//          create the row (placeholder ""), read the generated id, then update
+//          with `TKT-${String(id).padStart(3, "0")}`. @unique stops duplicates.
+//          Prisma fills createdAt (on insert) and updatedAt (on every update).
+//          ⚠️ These stay raw UTC — never format dates on the server; the client
+//          renders them in the viewer's timezone (see lib/datetime.ts).
 model Ticket {
   id            Int      @id @default(autoincrement())
   ticketId      String   @unique @default("")
@@ -24,9 +44,14 @@ model Ticket {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  notes Note[]
+  notes Note[]  // 👈 back-reference: ticket.notes lists all attached notes
 }
 
+// 👇 WHAT: An internal comment attached to a ticket (agent-visible only).
+// 👇 WHY:  The FK `ticketId` -> Ticket.id with `onDelete: Cascade` means deleting
+//          a ticket auto-deletes all its notes — no orphan rows, and the DELETE
+//          routes need no manual cleanup. This is a talking point in interviews:
+//          referential integrity enforced by the database, not app code.
 model Note {
   id        Int      @id @default(autoincrement())
   ticketId  Int
@@ -36,6 +61,11 @@ model Note {
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
+// 👇 WHAT: The three ticket states, stored as a NATIVE Postgres enum.
+// 👇 WHY:  Invalid values are rejected by the DB itself, not just app code.
+//          The UI tab filters map onto these exact strings:
+//          "open" -> OPEN, "in_progress" -> IN_PROGRESS, "closed" -> CLOSED
+//          (see the statusMap in app/_data/data-table.tsx).
 enum Status {
   OPEN
   IN_PROGRESS

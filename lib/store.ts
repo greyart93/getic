@@ -1,15 +1,38 @@
+//
+// ─── ZUSTAND STORE: THE APP'S SINGLE SOURCE OF TRUTH ──────────────────────
+// Every component reads tickets from here and every mutation flows through
+// here. There is no other state layer — React Query is not used.
+//
+// THE DATA FLOW for any mutation (create/update/delete):
+//   1. Component calls an action below (e.g. useTicketStore().addTicket(...))
+//   2. The action fires the fetch() to the matching /api/... route
+//   3. On success it set()s the updated tickets array -> all subscribed
+//      components re-render automatically
+//   4. A toast shows loading -> success/error feedback
+//
+// WHY ZUSTAND (vs Redux/Context)?
+//   - One `create()` call, no providers, no reducers, no dispatch boilerplate
+//   - Components subscribe with selectors, so only the pieces they use trigger
+//     re-renders
+//
+// DATES: state always holds RAW ISO UTC strings exactly as the API returns
+// them. Formatting happens at render time in the components via
+// lib/datetime.ts, never here. (See the "optimistic update" notes below —
+// they are the most interview-worthy part of this file.)
+
 import { create } from 'zustand'
 import { Ticket } from '@/app/_data/tempdata'
 import { toast } from '@/components/ui/toast'
 
 interface TicketStore {
-  tickets: Ticket[]
-  isLoading: boolean
-  error: string | null
+  // ── State ──
+  tickets: Ticket[]        // raw ISO dates, newest first (API order)
+  isLoading: boolean       // true while fetchTickets is in flight
+  error: string | null     // last error message (for error UI)
 
-  // Actions
+  // ── Actions ──
   fetchTickets: () => Promise<void>
-  addTicket: (ticketData: Partial<Ticket>) => Promise<void> // ✅ Changed to Partial
+  addTicket: (ticketData: Partial<Ticket>) => Promise<void>
   updateStatus: (id: number, newStatus: "OPEN" | "IN PROGRESS" | "CLOSED") => void
   updateTicket: (id: number, updates: Partial<Ticket>) => void
   deleteTicket: (id: number) => void
@@ -22,7 +45,9 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   isLoading: false,
   error: null,
 
-  // 1. Fetch from Database
+  // 1. FETCH — the only "read" action. Called once on page load (from
+  // components/main.tsx useEffect). Everything after that mutates local
+  // state optimistically instead of re-fetching the whole list.
   fetchTickets: async () => {
     set({ isLoading: true, error: null })
     try {
@@ -38,7 +63,9 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     }
   },
 
-  // 2. Create a new ticket
+  // 2. CREATE — the toast lifecycle here is the pattern used by every action:
+  //    loading toast -> await API -> morph same toast into success (or error).
+  //    The toast.update(toastId, ...) call REPLACES the loading spinner in place.
   addTicket: async (ticketData: Partial<Ticket>) => {
     const toastId = toast.add({
       type: 'loading',
@@ -59,8 +86,12 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       })
       if (!res.ok) throw new Error('Failed to create ticket')
 
+      // 👇 API responds with the full row (including server-generated id,
+      //    ticketId code and createdAt) so we can prepend the REAL ticket —
+      //    no placeholder guessing, no refetch needed.
       const newTicket = await res.json()
 
+      // Prepend because GET /api/tickets is newest-first
       set((state) => ({ tickets: [newTicket, ...state.tickets] }))
 
       toast.update(toastId, {
@@ -82,7 +113,16 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   },
 
 
-  // 3. Update status in DB and UI
+  // 3. STATUS CHANGE (dropdown in the table row) — OPTIMISTIC UPDATE example.
+  //    Order of operations matters:
+  //    a) show loading toast
+  //    b) set() the new status IMMEDIATELY -> UI updates instantly (optimistic)
+  //    c) fire PATCH in the background
+  //    d) on success: sync the real updatedAt from the response
+  //    e) on failure: the row just keeps its old status in the DB — a refetch
+  //       (fetchTickets) would resync; we surface the error via toast instead.
+  //    Trade-off to articulate in an interview: instant perceived speed vs.
+  //    a small window where local state differs from the database.
   updateStatus: async (id, newStatus) => {
     const toastId = toast.add({
       type: 'loading',
@@ -131,7 +171,9 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     }
   },
 
-  // 4. Update any fields in DB and UI (used for Edit)
+  // 4. EDIT (used by the edit dialog) — same optimistic pattern as updateStatus,
+  //    but spreads ALL submitted fields into the local row, then replaces the
+  //    row with the authoritative API response ({ ...t, ...updated }).
   updateTicket: async (id, updates) => {
     const toastId = toast.add({
       type: 'loading',
@@ -180,7 +222,9 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     }
   },
 
-  // 5. Delete single ticket in DB and UI
+  // 5. DELETE ONE — optimistic: remove from local state first, then DELETE.
+  //    Note: the server cascades the ticket's notes (schema.prisma) — nothing
+  //    to clean up client-side.
   deleteTicket: async (id) => {
     const toastId = toast.add({
       type: 'loading',
@@ -217,7 +261,8 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     }
   },
 
-  // 6. Delete bulk tickets in DB and UI
+  // 6. BULK DELETE — driven by the table's checkbox toolbar (see
+  //    app/_data/data-table.tsx). One DELETE /api/tickets with { ids: [...] }.
   deleteBulkTickets: async (ids) => {
     const count = ids.length
     const toastId = toast.add({
@@ -257,7 +302,10 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     }
   },
 
-  // 7. Add note to a ticket
+  // 7. ADD NOTE — has a FALLBACK ROUTE: it tries POST /api/notes first and,
+  //    if that endpoint ever fails, retries POST /api/tickets/{id}/notes
+  //    (they write to the same table). Then splices the new note into the
+  //    local ticket's notes array (front, because notes are newest-first).
   addNoteToTicket: async (ticketId: number, notesText: string) => {
     const toastId = toast.add({
       type: 'loading',
@@ -283,6 +331,8 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       if (!res.ok) throw new Error('Failed to add note')
       const newNote = await res.json()
 
+      // 👇 Touch updatedAt locally too, since the server bumps it for the
+      //    note. Raw ISO string — never a formatted display string.
       set((state) => ({
         tickets: state.tickets.map((t) =>
           t.id === ticketId

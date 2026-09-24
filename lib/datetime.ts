@@ -24,6 +24,12 @@ const DATE_TIME_OPTS: Intl.DateTimeFormatOptions = {
   hour12: true,
 }
 
+// 👇 HOW THE MAGIC WORKS: an ISO string like "2026-09-22T10:30:00.000Z" encodes
+//    an absolute instant (the Z = UTC). `new Date(...)` parses it into a
+//    timestamp, and every toLocale* method then renders that instant in the
+//    RUNTIME's timezone — which, in the browser, is the viewer's. That's why
+//    this file must never run on the server (there the runtime is UTC).
+
 /** Format a date value as e.g. "22 Sep 2026" in the viewer's local timezone. */
 export function formatDate(value: string | number | Date | null | undefined): string {
   if (!value) return ''

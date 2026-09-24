@@ -1,3 +1,15 @@
+//
+// ─── TOAST SYSTEM (custom shadcn-style wrapper over Base UI) ───────────────
+// Usage from ANYWHERE (even outside React components, e.g. the zustand store):
+//   import { toast } from '@/components/ui/toast'
+//   const id = toast.add({ type: 'loading', title: '...' })
+//   toast.update(id, { type: 'success', timeout: 3000 })
+//
+// The key trick is at the bottom: one toast MANAGER is created at module
+// scope and shared by the <Toaster /> mounted in the root layout and every
+// toast.add()/toast.update() caller. That's why the store can drive toasts
+// without context or props.
+
 "use client"
 
 import * as React from "react"
@@ -7,6 +19,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
+// 👇 The global manager. Module-level singleton: same instance for the whole
+//    browser tab, imported by both the <Toaster/> renderer and all callers.
 const toast = ToastPrimitive.createToastManager()
 
 function ToastProvider({ ...props }: ToastPrimitive.Provider.Props) {
@@ -179,6 +193,8 @@ function ToastIcon({ type }: { type: string | undefined }) {
   )
 }
 
+// 👇 Renders whenever the manager's toasts array changes — this is the
+//    subscription that makes imperative toast.add() calls appear on screen.
 function ToastList() {
   const { toasts } = ToastPrimitive.useToastManager()
 
@@ -197,6 +213,8 @@ function ToastList() {
   ))
 }
 
+// 👇 Mounted once in app/layout.tsx. Wires the module-level manager into the
+//    Base UI provider so add()/update() and rendering share one source.
 function Toaster({
   children,
   toastManager = toast,

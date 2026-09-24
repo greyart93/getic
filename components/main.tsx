@@ -1,3 +1,14 @@
+//
+// ─── MAIN TICKETS PAGE (the whole UI orchestrator) ─────────────────────
+// Owns: tabs, search box, the data table, and ALL four dialogs. It is the
+// only place that connects the table's meta callbacks to the zustand store.
+// Dialogs live here (not inside the table) so their state survives
+// pagination/sorting changes and they can be reused elsewhere.
+//
+// Rendering pipeline: zustand tickets -> this component -> DataTable ->
+// columns.tsx cells -> callbacks come back through table `meta` -> zustand
+// actions. Everything else in the UI is a leaf.
+
 "use client"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,7 +25,9 @@ import { useTicketStore } from "@/lib/store"; // 👈 Import store
 import type { Ticket } from "@/app/_data/tempdata";
 
 export default function Main() {
-    // 👇 1. GET STATE AND ACTIONS FROM ZUSTAND
+    // ── 1. STORE HOOKUP ──
+    // Subscribes this component to the zustand store: any tickets state change
+    // re-renders here, and the actions below are the ONLY way we mutate data.
     const { 
         tickets, 
         isLoading, 
@@ -26,15 +39,20 @@ export default function Main() {
         addNoteToTicket,
     } = useTicketStore()
 
-    // 👇 2. FETCH DATA FROM DB ON FIRST LOAD
+    // ── 2. FIRST LOAD: pull everything from the DB (the only fetch call) ──
+    // Empty dep array = once per mount. Subsequent "freshness" comes from the
+    // optimistic updates in the store, not re-fetching.
     useEffect(() => {
         fetchTickets()
     }, [])
 
-    const [activeTab, setActiveTab] = useState("all")
-    const [globalSearch, setGlobalSearch] = useState<string>("")
+    // ── LOCAL UI STATE (stays local — no reason to put it in the store) ──
+    const [activeTab, setActiveTab] = useState("all")            // which filter tab
+    const [globalSearch, setGlobalSearch] = useState<string>("") // search box text
 
-    // States for Delete (shared for single and bulk)
+    // ── DIALOG STATE ──
+    // One dialog = `open` flag + "which ticket" id. Delete is SHARED between
+    // single and bulk: exactly one of ticketToDelete / bulkDeleteIds is set.
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [ticketToDelete, setTicketToDelete] = useState<number | null>(null)
     const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([])
@@ -51,7 +69,11 @@ export default function Main() {
     const [noteDialogOpen, setNoteDialogOpen] = useState(false)
     const [ticketToNoteId, setTicketToNoteId] = useState<number | null>(null)
 
-    // Derived active ticket objects so notes update live
+    // ── DERIVED TICKET OBJECTS ──
+    // Dialogs only remember ticket IDs, and we re-look-up the full object from
+    // the store on every render. WHY: after an optimistic update (e.g. adding
+    // a note) the store's ticket object is REPLACED — a stored snapshot would
+    // go stale, but this derive keeps open dialogs live.
     const ticketToView = useMemo(
         () => tickets.find((t) => t.id === ticketToViewId) || null,
         [tickets, ticketToViewId]
@@ -62,7 +84,9 @@ export default function Main() {
         [tickets, ticketToNoteId]
     )
 
-    // 1. CHANGE STATUS (Uses Zustand)
+    // ── CALLBACKS: called by table cells via `meta`, delegate to zustand ──
+
+    // 1. CHANGE STATUS (from the status dropdown in a row)
     const handleStatusChange = (id: number, newStatus: "OPEN" | "IN PROGRESS" | "CLOSED") => {
         updateStatus(id, newStatus)
     }
@@ -134,7 +158,9 @@ export default function Main() {
     //     ];
     // }, [tickets]);
 
-    // 👇 STATS CALCULATION (Used for both header and filters)
+    // ── TAB COUNTS ── recomputed only when `tickets` changes (useMemo).
+    // Counts include IN_PROGRESS normalization; note main uses only the
+    // underscore spelling while the dashboard checks both.
     const statData = useMemo(() => {
         const total = tickets.length;
         const open = tickets.filter(t => t.status === 'OPEN').length;
@@ -179,6 +205,7 @@ export default function Main() {
             {/* Data Table */}
             <div className="w-full mt-4 overflow-hidden">
                 {isLoading ? (
+                    // ── LOADING SKELETON: fake header + 5 rows, pulse animation ──
                     <div className="rounded-md border overflow-hidden">
                         {/* Skeleton header */}
                         <div className="bg-gray-200 dark:bg-[#0f0f11] px-4 py-3 flex gap-6 border-b">

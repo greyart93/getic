@@ -1,3 +1,11 @@
+//
+// ─── TANSTACK TABLE v9 FEATURE REGISTRATION ─────────────────────────────
+// v9's headline change vs v8: a table has NO built-in features. You opt in
+// to each capability (sorting, pagination, selection...) here, and anything
+// unregistered is tree-shaken out of the bundle — smaller JS for free.
+// The resulting `features` object is passed to useTable() in data-table.tsx
+// and used as a generic parameter (DataTableFeatures) across the table files.
+
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -13,8 +21,6 @@ import {
   tableFeatures,
 } from "@tanstack/react-table"
 
-// New in v9: declare the features this table uses — anything you don't
-// register is tree-shaken out of the bundle.
 export const features = tableFeatures({
   columnFilteringFeature,
   columnVisibilityFeature,

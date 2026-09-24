@@ -1,3 +1,13 @@
+//
+// ─── VIEW TICKET DIALOG (details + internal notes) ─────────────────────
+// Opens from the row's "..." menu -> View. Shows full ticket fields, the
+// description, and the note history (which arrives nested on the ticket
+// object from GET /api/tickets). Note dates are raw ISO from the store and
+// are formatted at RENDER time via lib/datetime.ts — that's what makes them
+// show the viewer's local timezone.
+// Adding a note here calls the store's addNoteToTicket, which optimistically
+// splices the note into the ticket — so the list updates without a refetch.
+
 "use client"
 
 import { useState } from "react"
@@ -30,6 +40,8 @@ export function TicketViewDialog({
   const [newNote, setNewNote] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // 👇 Guard: dialogs stay mounted while closed, so `ticket` can be null.
+  //    main.tsx always passes a live store object, never a stale snapshot.
   if (!ticket) return null
 
   const getStatusVariant = (status: string) => {
@@ -42,6 +54,9 @@ export function TicketViewDialog({
     e.preventDefault()
     if (!newNote.trim() || !onAddNote || isSubmitting) return
 
+    // 👇 onAddNote = store.addNoteToTicket — it throws on failure so we can
+    //    keep the text in the box; on success it updates the store and the
+    //    note appears via re-render. Clear the input only after it resolves.
     try {
       setIsSubmitting(true)
       await onAddNote(ticket.id, newNote.trim())
@@ -114,6 +129,7 @@ export function TicketViewDialog({
             <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground font-medium">Date Created</p>
+              {/* 👇 Client-side formatting; fallbacks cover legacy mock rows */}
               <p className="font-semibold">{formatDateTime(ticket.createdAt) || formatDate(ticket.date) || "N/A"}</p>
             </div>
           </div>

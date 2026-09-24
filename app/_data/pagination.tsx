@@ -1,3 +1,10 @@
+//
+// ─── TABLE PAGINATION FOOTER ────────────────────────────────────────────
+// Pure UI over the TanStack table instance passed down from data-table.tsx.
+// All state (page index, page size) lives inside the table instance via its
+// initialState.pagination — this component just reads and calls setters.
+// Pagination is CLIENT-SIDE only: GET /api/tickets returns every row.
+
 import { type ReactTable, type RowData } from "@tanstack/react-table"
 import {
   ChevronLeft,

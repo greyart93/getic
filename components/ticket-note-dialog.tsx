@@ -1,3 +1,9 @@
+//
+// ─── ADD NOTE DIALOG (standalone note composer) ────────────────────────
+// Opens from the row's "..." menu -> Add Note. Simpler than the view dialog:
+// one textarea + the previous-notes preview. Same store action as the view
+// dialog's inline form (addNoteToTicket), same client-side date formatting.
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -32,6 +38,8 @@ export function TicketNoteDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
 
+  // Reset the composer every time the dialog opens (stale text otherwise
+  // survives between tickets since dialogs stay mounted)
   useEffect(() => {
     if (open) {
       setNoteText("")
@@ -41,6 +49,8 @@ export function TicketNoteDialog({
 
   if (!ticket) return null
 
+  // Manual validation + submit. onSaveNote resolves -> close; rejects ->
+  // surface the error inline (the store already fired an error toast).
   const handleSubmit = async () => {
     if (!noteText.trim()) {
       setError("Please write a note before submitting.")

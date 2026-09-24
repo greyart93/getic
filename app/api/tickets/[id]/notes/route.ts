@@ -1,3 +1,11 @@
+//
+// ─── NOTES FOR ONE TICKET API ───────────────────────────────────────────
+//   POST /api/tickets/[id]/notes   add a note to ticket #id
+//   GET  /api/tickets/[id]/notes   list that ticket's notes, newest first
+//
+// Same job as /api/notes but scoped by the URL path instead of a query param.
+// The view dialog uses this when refreshing a single ticket's notes.
+
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -24,6 +32,8 @@ export async function POST(
       },
     })
 
+    // 👇 Bump the parent ticket's updatedAt (child writes don't do it
+    //    automatically — see the longer comment in app/api/notes/route.ts)
     await prisma.ticket.update({
       where: { id: Number(id) },
       data: { updatedAt: new Date() },

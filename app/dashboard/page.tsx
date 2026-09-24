@@ -1,3 +1,11 @@
+//
+// ─── ANALYTICS DASHBOARD (/dashboard) ─────────────────────────────────
+// Read-only page: four summary cards + three Recharts charts (pie, bar, line)
+// computed ENTIRELY client-side from the same zustand tickets the table uses.
+// No separate analytics API — one source of truth, recomputed via useMemo
+// whenever the store changes. All charts render "use client" (Recharts needs
+// the DOM, so we gate on isClient to avoid SSR hydration mismatches).
+
 "use client"
 
 import { useMemo, useEffect, useState } from "react"
@@ -18,6 +26,8 @@ function Card({ title, num }: { title: string, num: number }) {
     )
 }
 
+// Bar-chart palette (cycled per customer); fixed colors per status keep the
+// pie legend consistent with the table badges.
 const COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6'];
 const STATUS_COLORS = {
     'OPEN': '#ef4444',
@@ -42,7 +52,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function DashboardPage() {
+    // Same store as the table page — navigating between them never refetches
+    // unless the store is empty.
     const { tickets, fetchTickets, isLoading } = useTicketStore()
+    // 👇 isClient flips on after mount: Recharts measures the DOM, so rendering
+    //    during SSR would produce hydration mismatches. `null` until then.
     const [isClient, setIsClient] = useState(false)
 
     useEffect(() => {
@@ -80,7 +94,12 @@ export default function DashboardPage() {
             .sort((a, b) => b.tickets - a.tickets)
             .slice(0, 5); // Top 5
 
-        // Group by real calendar day (local timezone) for Timeline
+        // ── TIMELINE (line chart) ──
+        // Group tickets by LOCAL calendar day (not by formatted string — that
+        // used to sort alphabetically). Steps: parse createdAt -> take the
+        // local midnight timestamp as the Map key -> count per day -> sort
+        // chronologically -> keep the last 7 days that have data. Formatting
+        // with toLocaleDateString is safe here: this whole memo runs client-side.
         const dateMap = new Map<number, { date: string; count: number; ts: number }>();
         tickets.forEach(t => {
             if (!t.createdAt) return;
@@ -104,7 +123,8 @@ export default function DashboardPage() {
         return { cardData, statusData, customerData, timelineData };
     }, [tickets]);
 
-    if (!isClient) return null; // Avoid hydration mismatch on charts
+    // Render nothing on the server pass — see isClient above
+    if (!isClient) return null;
 
     return (
         <LayoutClient>

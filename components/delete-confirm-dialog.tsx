@@ -1,3 +1,9 @@
+//
+// ─── DELETE CONFIRMATION DIALOG ────────────────────────────────────────
+// Styled replacement for window.confirm (which is blocked in some iframes
+// and can't be themed). Fully dumb component: main.tsx decides what deleting
+// means (single vs bulk) and passes a plain onConfirm callback.
+
 "use client"
 
 import {

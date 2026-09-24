@@ -1,21 +1,31 @@
+//
+// ─── SINGLE TICKET API ───────────────────────────────────────────────────
+//   PATCH  /api/tickets/[id]   partial update (edit form / status dropdown)
+//   DELETE /api/tickets/[id]   delete one ticket (its notes cascade too)
+//
+// NOTE ON DATES: raw ISO 8601 UTC strings only — client formats its own
+// timezone via lib/datetime.ts (was a real production bug on Vercel).
+
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// NOTE: Dates are returned as raw ISO 8601 UTC strings. All timezone conversion
-// and formatting happens client-side (see lib/datetime.ts) so users always see
-// the time in their own timezone, regardless of the server's (Vercel = UTC).
-
 export async function PATCH(
   request: Request,
+  // 👇 Next 15+ quirk: dynamic route params are a Promise, must be awaited
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const body = await request.json()
 
+    // 👇 Normalize: the UI sends "IN PROGRESS" (with a space, for display);
+    //    the Postgres enum is "IN_PROGRESS" (with underscore). Map before save.
     let status = body.status
     if (status === 'IN PROGRESS') status = 'IN_PROGRESS'
 
+    // 👇 PARTIAL UPDATE trick: spread-conditional — a field is only included
+    //    in the Prisma `data` object if it was sent in the request body, so
+    //    PATCH with just { status } won't wipe the other columns.
     const updated = await prisma.ticket.update({
       where: { id: Number(id) },
       data: {
@@ -43,6 +53,7 @@ export async function DELETE(
     const { id } = await params
     await prisma.ticket.delete({
       where: { id: Number(id) },
+      // 👇 No note cleanup needed: onDelete: Cascade handles it in the DB
     })
 
     return NextResponse.json({ success: true })

@@ -1,3 +1,12 @@
+//
+// ─── APP SHELL: SIDEBAR + HEADER + PAGE CONTENT ─────────────────────────
+// Wraps every page (both routes render children through this). Responsibilities:
+//   - Collapsible sidebar (mobile: slide-in overlay / desktop: toggle collapse)
+//   - Header row with sidebar toggles, the "New Ticket" button and theme toggle
+//   - The CREATE dialog lives HERE (not in main.tsx) because the button is in
+//     the header — same TicketFormDialog component, reused with initialData
+//     = null for create (main.tsx passes a ticket for edit).
+
 "use client";
 
 import { useState } from "react";
@@ -10,14 +19,16 @@ import { TicketFormDialog } from "@/components/ticket-form-dialog";
 import { useTicketStore } from "@/lib/store";
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
+  // Mobile sidebar is closed by default, desktop open
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-  // 👇 GET THE ADD ACTION FROM ZUSTAND
+  // 👇 Select just the one action we need (selector = re-render only on change)
   const addTicket = useTicketStore((state) => state.addTicket);
 
-  // 👇 REPLACED 50+ LINES OF CODE WITH THIS SINGLE HANDLER
+  // Create flow: addTicket owns loading/success/error toasts inside the store;
+  // we only close the dialog on success (addTicket throws on failure).
   const handleCreateTicket = async (data: { subject: string; customerName: string; customerEmail: string; description: string }) => {
     try {
       await addTicket(data)
@@ -101,7 +112,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
         </main>
       </div>
 
-      {/* Create Ticket Dialog */}
+      {/* Create Ticket Dialog — same component as Edit, initialData=null */}
       <TicketFormDialog 
         open={isCreateDialogOpen} 
         onOpenChange={setIsCreateDialogOpen} 

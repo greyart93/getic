@@ -1,3 +1,13 @@
+//
+// ─── THE DATA TABLE (TanStack Table v9 + shadcn Table primitives) ───────
+// Headless table: TanStack computes rows/sorting/selection, the shadcn
+// <Table> components are pure HTML rendering. Data flow in:
+//   main.tsx (zustand tickets + search text + active tab)
+//     └─ DataTable: applies status filter + global search ITSELF (plain JS,
+//        see filteredData below), then hands the result to useTable for
+//        sorting/pagination/selection.
+// Actions flow out via `meta` callbacks -> main.tsx -> zustand store.
+
 "use client"
 import * as React from "react"
 
@@ -64,7 +74,10 @@ export function DataTable<TData extends RowData>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
 
-  // Handle Tab filtering
+  // ── TAB FILTERING ──
+  // When the user clicks a tab (All / Open / In Progress / Closed) in main.tsx,
+  // this effect translates it into a TanStack columnFilter on the `status`
+  // column. Sorting is reset too — otherwise a sorted view could hide rows.
   React.useEffect(() => {
     setSorting([])
     if (filterStatus === "all") {
@@ -79,6 +92,12 @@ export function DataTable<TData extends RowData>({
     }
   }, [filterStatus])
 
+  // ── MANUAL FILTERING (pre-TanStack) ──
+  // Status + global search are applied to the raw array BEFORE useTable sees
+  // it. (Search matches ticketId, subject and customerName only.) Note the
+  // IN PROGRESS / IN_PROGRESS compatibility check — the DB enum uses the
+  // underscore, the UI uses the space. This could instead use TanStack's
+  // filterFns; it predates the v9 migration.
   const filteredData = React.useMemo(() => {
     let result = data
     const statusFilter = columnFilters.find(f => f.id === 'status')
@@ -98,8 +117,10 @@ export function DataTable<TData extends RowData>({
     return result
   }, [data, columnFilters, globalSearch])
 
-  // 👇 DEFINE THE CHECKBOX COLUMN
-   // 👇 FIXED: Added explicit ColumnDef typing
+  // ── CHECKBOX COLUMN (row selection) ──
+  // Prepended to the user columns below. The header checkbox selects ALL rows
+  // (toggleAllRowsSelected), each row checkbox toggles one. This is what
+  // feeds the bulk-delete toolbar.
   const checkboxColumn: ColumnDef<DataTableFeatures, TData> = {
     id: "select",
     header: ({ table }: any) => (
@@ -119,6 +140,10 @@ export function DataTable<TData extends RowData>({
     enableSorting: false,
     enableHiding: false,
   }
+  // ── THE TABLE INSTANCE ──
+  // `state` is CONTROLLED: sorting/selection live in React state above so
+  // other code can read them. Everything else (pagination) is uncontrolled
+  // via initialState.
   const table = useTable({
     features,
     data: filteredData,
@@ -129,7 +154,9 @@ export function DataTable<TData extends RowData>({
     },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
-    // 👇 CRITICAL FIX: Tell the table how to get a unique ID for each row
+    // 👇 CRITICAL for row selection: without a stable row id TanStack falls
+    //    back to row INDEX, and selection breaks when pages change/sort.
+    //    We map each row to its DB primary key.
     getRowId: (row: any) => String(row.id),
     meta: {
       onStatusChange,
@@ -146,7 +173,9 @@ export function DataTable<TData extends RowData>({
     },
   })
 
-  // 👇 FIX: Get selected IDs safely using getRowId
+  // ── SELECTED ROW IDS ──
+  // rowSelection is a { "rowId": true } map, not an array — this memo converts
+  // it back to the numeric DB ids the bulk-delete API expects.
   const selectedIds = React.useMemo(() => {
     const ids: number[] = []
     table.getSelectedRowModel().rows.forEach((row) => {
@@ -158,12 +187,13 @@ export function DataTable<TData extends RowData>({
     return ids
   }, [rowSelection, table])
 
-  // 👇 FIXED HANDLE BULK DELETE (No native confirm)
+  // ── BULK DELETE HANDLER ──
+  // Deliberately does NOT call window.confirm (blocked by some browsers in
+  // iframes, ugly, not styleable) — instead onBulkDelete opens the styled
+  // confirmation dialog owned by main.tsx.
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) return
-    
-    // ❌ REMOVED: if (confirm(...)) { ... }
-    
+
     if (onBulkDelete) {
       onBulkDelete(selectedIds) // 👈 Open the Shadcn Dialog in main.tsx
       setRowSelection({}) // Clear selection after deletion
@@ -173,7 +203,7 @@ export function DataTable<TData extends RowData>({
   return (
     <div className="h-[75vh] flex flex-col rounded-md border relative overflow-hidden">
       
-      {/* 👇 BULK ACTION TOOLBAR */}
+      {/* ── BULK ACTION TOOLBAR: appears only when rows are selected ── */}
       {selectedIds.length > 0 && (
         <div className="bg-gray-200 dark:bg-[#0f0f11] p-2 border-b flex justify-between items-center z-20">
           <span className="text-sm text-muted-foreground">
@@ -193,6 +223,7 @@ export function DataTable<TData extends RowData>({
 
       <div className="flex-1 overflow-auto">
         <Table>
+          {/* Sticky header stays visible while the body scrolls (h-[75vh]) */}
           <TableHeader className="sticky top-0 z-10 bg-gray-200 dark:bg-[#0f0f11]">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
