@@ -1,9 +1,10 @@
 //
 // ─── TABLE PAGINATION FOOTER ────────────────────────────────────────────
 // Pure UI over the TanStack table instance passed down from data-table.tsx.
-// All state (page index, page size) lives inside the table instance via its
+// Page state (index, size) lives inside the table instance via its
 // initialState.pagination — this component just reads and calls setters.
-// Pagination is CLIENT-SIDE only: GET /api/tickets returns every row.
+// Pagination is CLIENT-SIDE only: the whole table is already in memory
+// (see lib/store.ts), so every click is instant — no network.
 
 import { type ReactTable, type RowData } from "@tanstack/react-table"
 import {
@@ -33,9 +34,11 @@ export function DataTablePagination<TData extends RowData>({
 }: DataTablePaginationProps<TData>) {
   return (
     <div className="flex items-center justify-between p-1 overflow-x-auto w-full">
+      {/* Server-side pagination: `rowCount` is the DB grand total, so this
+          reads "N row(s) selected of M total in database" — not just this page. */}
       <div className="flex-1 text-sm text-muted-foreground hidden sm:block scrollbar-thin scrollbar-thumb-rounded">
         {table.getFilteredSelectedRowModel().rows.length} of{" "}
-        {table.getFilteredRowModel().rows.length} row(s) selected.
+        {table.getRowCount()} row(s) selected.
       </div>
       <div className="flex items-center space-x-2 sm:space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">

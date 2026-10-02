@@ -9,14 +9,58 @@
 
 "use client";
 
-import { useState } from "react";
-import { Menu, X, Plus, PanelLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, X, Plus, PanelLeft, Loader2 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 import { ModeToggle } from "@/components/mode-toggle";
 import { ThemeToggle } from "./ui/toggle-theme";
 import NavBar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { TicketFormDialog } from "@/components/ticket-form-dialog";
 import { useTicketStore } from "@/lib/store";
+import { AuthGate } from "@/components/auth-gate";
+import { UserMenu } from "@/components/user-menu";
+import { OrgSwitcher } from "@/components/org-switcher";
+
+// >> ONBOARDING GATE (flow B): every app-shell page requires a workspace.
+//    A signed-in user with NO organization (fresh signup, or removed from
+//    their only room) is routed to /welcome to create a room, join by
+//    ID+password, or accept a pending invitation. /welcome itself and the
+//    invite deep-link (?invite=) on /organization are exempt - they ARE the
+//    onboarding surface. The check reads the org-list atom (same source the
+//    sidebar chip uses); it never blocks users who HAVE rooms.
+const ONBOARDING_EXEMPT = ["/welcome", "/organization"];
+
+function OrgGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { data: orgs, isPending } = authClient.useListOrganizations();
+  const exempt = ONBOARDING_EXEMPT.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+  const needsOnboarding = !isPending && !exempt && (orgs ?? []).length === 0;
+
+  useEffect(() => {
+    if (needsOnboarding) {
+      router.replace("/welcome");
+    }
+  }, [needsOnboarding, router]);
+
+  // >> NO FLASH OF PROTECTED PAGES: while the org list is still being fetched
+  //    we render a neutral loader instead of the app shell. A fresh signup
+  //    (0 rooms) therefore never sees /tickets appear and vanish - the
+  //    redirect decision is made BEFORE anything renders. Exempt pages
+  //    (/welcome, /organization) render immediately; they ARE onboarding.
+  if (isPending && !exempt) {
+    return (
+      <div className="min-h-[60svh] flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (needsOnboarding) return null;
+  return <>{children}</>;
+}
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   // Mobile sidebar is closed by default, desktop open
@@ -40,7 +84,9 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
   };
 
   return (
-    <div className="min-h-[90svh] border-2 m-0 md:m-3 rounded-xl flex border-transparent md:border-border p-0 overflow-hidden">
+    <AuthGate>
+      <OrgGate>
+      <div className="min-h-[90svh] border-2 m-0 md:m-3 rounded-xl flex border-transparent md:border-border p-0 overflow-hidden">
       {/* Sidebar */}
       <div
         className={`
@@ -92,6 +138,15 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
             <PanelLeft className="size-5" />
           </button>
 
+          {/* ACTIVE ORG SWITCHER (status-filter dropdown pattern): shows the
+              room every query is scoped to; click to switch org/department
+              from any page - admins and agents both. HIDDEN on mobile - it
+              crowds the header there; the sidebar's "Active org" chip and
+              the Organization page cover it (see responsive fix). */}
+          <div className="hidden md:block">
+            <OrgSwitcher />
+          </div>
+
           <div className="flex items-center gap-2">
             {/* New Ticket Button */}
             <Button className="gap-2" onClick={() => setIsCreateDialogOpen(true)}>
@@ -99,6 +154,9 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
               <span className="hidden sm:inline">New Ticket</span>
               <span className="sm:hidden">New</span>
             </Button>
+
+            {/* Signed-in identity: avatar + role + sign out (Better Auth) */}
+            <UserMenu />
 
             {/* Dark/Light Mode */}
             {/* <ModeToggle /> */}
@@ -120,5 +178,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
         onSave={handleCreateTicket}
       />
     </div>
+      </OrgGate>
+    </AuthGate>
   );
 }

@@ -10,4 +10,13 @@
  */
 export type * from './models/Ticket'
 export type * from './models/Note'
+export type * from './models/User'
+export type * from './models/Presence'
+export type * from './models/Session'
+export type * from './models/Account'
+export type * from './models/Verification'
+export type * from './models/Organization'
+export type * from './models/Member'
+export type * from './models/Activity'
+export type * from './models/Invitation'
 export type * from './commonInputTypes'

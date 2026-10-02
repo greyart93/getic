@@ -19,6 +19,14 @@
 // them. Formatting happens at render time in the components via
 // lib/datetime.ts, never here. (See the "optimistic update" notes below —
 // they are the most interview-worthy part of this file.)
+//
+// DATA MODEL: `tickets` holds the WHOLE table, fetched ONCE by fetchTickets()
+// (GET /api/tickets returns everything, newest first). Filter, search and
+// pagination all happen client-side in the TanStack table — which is why
+// they feel instant (zero network on every filter/page action) and why a
+// filter always sees every row. Mutations stay optimistic: local edit first,
+// then the API call, then a toast. See PAGINATION.md for why this beats
+// server paging at this scale.
 
 import { create } from 'zustand'
 import { Ticket } from '@/app/_data/tempdata'
@@ -26,7 +34,7 @@ import { toast } from '@/components/ui/toast'
 
 interface TicketStore {
   // ── State ──
-  tickets: Ticket[]        // raw ISO dates, newest first (API order)
+  tickets: Ticket[]        // the WHOLE table, raw ISO dates, newest first
   isLoading: boolean       // true while fetchTickets is in flight
   error: string | null     // last error message (for error UI)
 

@@ -67,6 +67,23 @@ export const columns = columnHelper.columns([
   
   columnHelper.accessor("subject", {
     header: ({ column }) => <SortableHeader column={column} title="Subject" />,
+    // 👇 CAPPED WIDTH + ELLIPSIS. Without this cell, a long subject stretches
+    //    the auto-layout column and shoves every other column sideways. The
+    //    inner block is width-capped per breakpoint and `truncate` clips the
+    //    overflow with a trailing "…" (overflow-hidden + nowrap + ellipsis).
+    //    The full text is never lost: `title` shows it on desktop hover, and
+    //    the row's View dialog shows it on mobile (where there is no hover).
+    cell: ({ getValue }) => {
+      const value = getValue();
+      return (
+        <span
+          title={value}
+          className="block max-w-[220px] truncate sm:max-w-[320px] lg:max-w-[380px]"
+        >
+          {value}
+        </span>
+      );
+    },
   }),
   
   columnHelper.accessor("customerName", {
@@ -74,12 +91,16 @@ export const columns = columnHelper.columns([
     cell: ({ getValue }) => {
       const val = getValue()
       return (
-        <div className="flex items-center gap-1">
-          <Avatar>
-            <AvatarImage src="https://github.com/shadcn.png" />
+        // 👇 min-w-0 + truncate: in the fixed-layout table the Customer
+        //    column has a pinned width, so long names must clip with "…"
+        //    instead of overflowing into the Status column (title tooltip
+        //    shows the full name on hover).
+        <div className="flex items-center gap-1 min-w-0">
+          <Avatar className="shrink-0">
+            <AvatarImage src="/avatars/shadcn.png" />
             <AvatarFallback>{val}</AvatarFallback>
           </Avatar>
-          <p>{val}</p>
+          <p title={val} className="truncate min-w-0">{val}</p>
         </div>
       )
     }

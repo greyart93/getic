@@ -25,6 +25,8 @@
 | Charts | **Recharts 3** | declarative SVG charts, client-only |
 | DB | **PostgreSQL (Neon)** | managed, serverless-friendly |
 | ORM | **Prisma 7 + `@prisma/adapter-pg`** | typed queries; driver adapter instead of the Rust engine |
+| Auth | **Better Auth** (Prisma adapter) | email/password + Google/GitHub OAuth; admin plugin for roles; session types inferred |
+| Email | **Resend** | auth mail + ticket notifications; logs to console when no API key is set |
 | Validation | **Zod 4** | form validation in the create/edit dialog (API-side validation is manual — see ✦5) |
 | Deploy | **Vercel** + Neon | route handlers become serverless functions |
 
@@ -39,22 +41,30 @@ flowchart TD
         UI["UI Components<br/>(layout, main, dialogs, table)"]
         STORE["Zustand store<br/>lib/store.ts<br/>(single source of truth)"]
         DT["lib/datetime.ts<br/>client-side date formatting"]
+        AC["lib/auth-client.ts<br/>authClient · useSession<br/>(UserMenu, AuthGate)"]
     end
 
     subgraph Vercel["Vercel serverless functions"]
+        AUTH["Better Auth instance<br/>lib/auth.ts"]
+        GATE["requireUser / requireRole<br/>lib/rbac.ts"]
         API["Route Handlers<br/>app/api/**"]
         P["Prisma client<br/>lib/prisma.ts"]
+        MAIL["Resend sender<br/>lib/email.ts"]
     end
 
     DB[("Neon PostgreSQL")]
 
     UI -- "calls action e.g. addTicket()" --> STORE
-    STORE -- "fetch('/api/...')" --> API
+    STORE -- "fetch('/api/...')" --> GATE
+    GATE -- "401 / 403" --> API
     API --> P
     P --> DB
     DB --> P --> API -- "raw ISO dates only" --> STORE
     STORE -- "state change re-renders" --> UI
     UI -- "formats at render" --> DT
+    AC -- "fetch('/api/auth/*')" --> AUTH
+    AUTH --> P
+    API -- "ticket created / status changed" --> MAIL
 ```
 
 **The rule that keeps this clean:** the server stores and returns *absolute
@@ -67,19 +77,24 @@ fixed by removing all server-side `toLocaleString` and formatting only in
 
 ## 2. Request lifecycle (the two paths)
 
-### Read path — what happens on page load
+### Read path — what happens on page load (full fetch, client-side everything)
 
 ```mermaid
 flowchart TD
     M["Main component<br/>on mount"] --> S["store: fetchTickets()<br/>set isLoading=true"]
-    S --> A["GET /api/tickets"]
-    A --> P["Prisma: findMany<br/>include notes"]
+    S --> A["GET /api/tickets<br/>(the page's ONLY network read)"]
+    A --> P["Prisma findMany<br/>orderBy createdAt desc<br/>include notes"]
     P --> DB[("Neon DB")]
     DB --> P --> A
-    A -- "JSON: raw ISO dates,<br/>newest first, notes nested" --> S
-    S -- "set tickets,<br/>isLoading=false" --> M
-    M -- "table re-renders,<br/>dates formatted at render" --> DONE["Rendered UI"]
+    A -- "JSON array: EVERY ticket,<br/>raw ISO dates, notes nested" --> S
+    S -- "set tickets (full table),<br/>isLoading=false" --> M
+    M -- "filter/search/sort/paginate<br/>all in memory — instant" --> DONE["Rendered UI"]
 ```
+
+> **PAGINATION.md** is the design-decision record: why the full-array +
+> client-side model beat server-side paging here (a paged slice made client
+> filters lie — "Closed (34)" showing 1–3 rows), and the hybrid
+> `?status=&search=` design to re-introduce if the table grows.
 
 ### Write path — the optimistic update pattern (every mutation)
 
@@ -101,6 +116,33 @@ Trade-off to articulate: **instant perceived speed** in exchange for a small
 window where local state can differ from the database. Rollback here is
 implicit (DB never changed); a `fetchTickets()` resync is the escape hatch.
 
+### Auth path — how every request proves who it is
+
+The third lifecycle, orthogonal to read/write. Built on **Better Auth** with
+the Prisma adapter, so auth rows live in the same Neon database and migration
+history as Ticket/Note.
+
+```mermaid
+flowchart TD
+    B["Browser<br/>signIn.email / signIn.social<br/>(lib/auth-client.ts)"] --> R["/api/auth/*<br/>(app/api/auth/[...all])"]
+    R --> A["Better Auth<br/>lib/auth.ts"]
+    A --> DBA[("User · Session · Account<br/>· Verification tables")]
+    A -- "set-cookie: session token<br/>(HMAC-signed)" --> B
+    B -- "cookie on every /api call" --> G["requireUser() / requireRole('ADMIN')<br/>lib/rbac.ts"]
+    G -- "no/invalid session → 401" --> X["JSON error, store toasts it"]
+    G -- "role not in list → 403" --> X
+    G -- "ok → typed session" --> H["Handler runs<br/>(+ Resend email on ticket<br/>create / status change)"]
+```
+
+| Concern | Where | Decision |
+|---|---|---|
+| Sign-in methods | `lib/auth.ts` | Email+password, Google OAuth, GitHub OAuth — all converge on one `User` row (`Account` holds one row per provider identity) |
+| Roles | `prisma/schema.prisma` → `lib/access.ts` | Postgres enum `Role` (ADMIN/AGENT) mirrored by Better Auth's access control (`ac`), shared verbatim with the client so `authClient.admin.*` typechecks |
+| Enforcement | `lib/rbac.ts` | `requireUser()` / `requireRole(...)` at the top of every API route. **UI hiding is UX; these gates are the security.** 401 = not signed in, 403 = signed in but wrong role |
+| First admin | `databaseHooks.user.create.after` in `lib/auth.ts` | Whoever signs up with `FIRST_ADMIN_EMAIL` (exact match) is promoted to ADMIN on creation — no CLI/shell needed on Vercel. Everyone else starts AGENT (`defaultRole`) |
+| Admin UI | `app/admin/users/page.tsx` | ADMIN-only screen using the admin plugin's `listUsers`/`setRole`; the header avatar (`components/user-menu.tsx`) shows your role badge |
+| Emails | `lib/email.ts` | Auth verification/reset + `ticketCreatedEmail` / `ticketStatusEmail` through one `sendAuthEmail()` wrapper. **No `RESEND_API_KEY` → mail is logged to the console, never thrown** so auth/ticket flows never break |
+
 ---
 
 ## 3. Folder-by-folder
@@ -108,7 +150,7 @@ implicit (DB never changed); a `fetchTickets()` resync is the escape hatch.
 ```
 getic/
 ├── prisma/            DB schema + seed data          → ✦3.1
-├── lib/               store, prisma, datetime, utils → ✦3.2
+├── lib/               store, prisma, auth, rbac, email, datetime, utils → ✦3.2
 ├── app/               routes, API, generated client  → ✦3.3
 │   └── _data/         the TanStack table engine      → ✦3.4
 ├── components/        app shell, orchestrator, dialogs, theme → ✦3.5
@@ -127,6 +169,31 @@ getic/
 erDiagram
     TICKET ||--o{ NOTE : "has many (cascade delete)"
 
+    USER ||--o{ SESSION : "has many"
+    USER ||--o{ ACCOUNT : "one row per sign-in method"
+    USER {
+        string id PK "cuid (Better Auth)"
+        string name
+        string email UK
+        boolean emailVerified
+        enum role "ADMIN | AGENT (default AGENT)"
+        boolean banned "admin plugin"
+        string banReason
+        datetime banExpires
+    }
+    SESSION {
+        string id PK
+        string userId FK
+        string token UK "HMAC session cookie"
+        datetime expiresAt
+        string impersonatedBy "admin plugin"
+    }
+    ACCOUNT {
+        string id PK
+        string userId FK
+        string providerId "credential | google | github"
+        string accountId "provider-side id"
+    }
     TICKET {
         int id PK "autoincrement — the real key"
         string ticketId UK "display code TKT-001"
@@ -148,7 +215,7 @@ erDiagram
 
 | File | Role |
 |---|---|
-| **`schema.prisma`** | Two models + one native Postgres enum. Key decisions: (1) `ticketId` is a *display* code kept separate from the numeric PK — POST creates the row, reads the generated id, then updates with `TKT-${String(id).padStart(3,'0')}`. (2) `onDelete: Cascade` means the API's DELETE routes never manually clean notes. (3) `Status` is a DB-level enum, so invalid values are rejected by Postgres itself. (4) The custom `generator` output points at `../app/generated/prisma`. |
+| **`schema.prisma`** | App models (`Ticket`, `Note`) + the Better Auth tables (`User`, `Session`, `Account`, `Verification`) and two native Postgres enums (`Status`, `Role`). Key decisions: (1) `ticketId` is a *display* code kept separate from the numeric PK — POST creates the row, reads the generated id, then updates with `TKT-${String(id).padStart(3,'0')}`. (2) `onDelete: Cascade` means the API's DELETE routes never manually clean notes. (3) `Status` is a DB-level enum, so invalid values are rejected by Postgres itself. (4) The custom `generator` output points at `../app/generated/prisma`. (5) The auth tables must match what Better Auth's plugins expect — the admin plugin adds `User.banned/banReason/banExpires` and `Session.impersonatedBy`, and missing columns fails **at runtime** (`Prisma schema mismatch`), not migration time. |
 | **`seed.ts`** | Dev utility: reads `ticketData` from `tickets.ts`, maps the UI spelling `"IN PROGRESS"` → enum `"IN_PROGRESS"`, and bulk-inserts. Run via `pnpm prisma:seed` (script: `tsx prisma/seed.ts`). Note the clearing block is commented out — re-running without clearing duplicates rows. |
 | **`tickets.ts`** | 109 realistic mock tickets (TS array, typed). Source data for the seeder. Dates are raw-ish timestamp strings — consistent with "raw dates everywhere" contract. |
 
@@ -162,6 +229,11 @@ erDiagram
 | **`prisma.ts`** | The **Prisma singleton**. In dev, Next hot-reloads modules; without stashing the client on `globalThis`, each reload spawns a new connection pool and eventually exhausts Postgres. In production each serverless instance is a single cold process, so one client per instance is correct. Uses the Prisma 7 **driver adapter** (`PrismaPg` over node-postgres) instead of the built-in engine. `dotenv/config` import loads `.env` locally. |
 | **`datetime.ts`** | **Client-only** formatters (`formatDate`, `formatDateTime`). The whole timezone bug lives and dies here: `new Date(iso)` parses an absolute instant, and `toLocale*` renders it in the *runtime's* timezone — which in the browser is the viewer's, but on Vercel is UTC. Hence the file-header rule: never run server-side. |
 | **`utils.ts`** | The shadcn-standard `cn()` helper: `clsx` (conditional classes) + `tailwind-merge` (later Tailwind classes win conflicts). Used by every UI primitive. |
+| **`auth.ts`** | The **Better Auth server instance** — the single source of auth truth. Prisma adapter (same DB), email+password, Google/GitHub `socialProviders`, the **admin plugin** (roles + user-management endpoints) and the `databaseHooks.user.create.after` **first-admin bootstrap**. Exports the inferred `Session`/`User` types. Client code never imports this — see `auth-client.ts`. |
+| **`auth-client.ts`** | Browser-side `createAuthClient` (better-auth/react) + the `adminClient` plugin mirroring `lib/access.ts`, so `authClient.admin.setRole(...)` types our `ADMIN`/`AGENT` roles. Re-exports `signIn / signOut / signUp / useSession`. |
+| **`access.ts`** | **Shared role vocabulary** — `createAccessControl` statements (`user`, `session`, `ticket`, `note`) and the `adminRole` / `agentRole` definitions. Imported by BOTH server and client: one file decides who may do what. |
+| **`rbac.ts`** | The server gate: `requireUser()` / `requireRole(...)` return a `GateResult` — either the typed session or an already-built 401/403 JSON `Response`. Every protected route opens with one call. |
+| **`email.ts`** | The Resend wrapper: one `sendAuthEmail()` (branded inline-HTML shell) used by auth hooks AND the ticket API notifications. **Graceful degradation**: no API key → `[email:dev-only]` console log, never a throw. |
 
 Store topology — who reads and writes what:
 
@@ -187,39 +259,50 @@ flowchart LR
 |---|---|---|
 | `layout.tsx` | Server component | Root layout: Google fonts as CSS variables, `ThemeProvider`, and the single `<Toaster />` every `toast.add()` renders into. `suppressHydrationWarning` is required by next-themes. |
 | `page.tsx` | Server component | Route `/` — a thin composition: `<LayoutClient><Main /></LayoutClient>`. Stays a server component so the shell can be statically rendered. |
-| `dashboard/page.tsx` | Client component | Route `/dashboard` — analytics. Four summary cards + three Recharts charts, **all computed client-side** from the same store (no analytics API). Gated on an `isClient` flag because Recharts measures the DOM (SSR would cause hydration mismatches). Timeline chart groups tickets by *local calendar day* and sorts chronologically (was previously alphabetical-by-string). |
+| `dashboard/page.tsx` | Client component | Route `/dashboard` — analytics in the **shadcn dashboard-example style**: stat cards (label / big number / top-right trend badge / footnote; badges computed from a real last-7-vs-prior-7-day trend) + **eight shadcn charts** (status donut, customer bars, resolution gauge, growth area, day-of-week radar, monthly bars, backlog-age histogram, stacked composition area), built on `components/ui/chart.tsx` and computed client-side from `tickets` (the store holds the FULL table, so charts see everything). Daily charts share a **time-range selector** (7/14/30 days) and render a **zero-filled calendar window** (empty days show 0 — an honest trend, local-day boundaries per the timezone rule). Gated on `isClient` (Recharts measures the DOM; SSR would hydration-mismatch). Animations off (`isAnimationActive: false`) — Recharts animates via requestAnimationFrame, which never fires in background tabs. Responsive: 1→2→3-column grid, full-width spans, Tailwind-controlled heights (`h-[220px] sm:h-[260px] lg:h-[300px]`). **Color policy:** no chart hardcodes a hex — every series pulls a step from the theme's `--chart-1..5` ramp (a single blue family, light → dark, re-tintable in one place in `globals.css`), so charts restyle with the theme automatically; statuses map open → lightest / in-progress → mid / closed → darkest. The status donut is **self-describing for touch**: percentage labels render outside each sector (custom `<text>` renderer — the default inherits the sector's fill and goes unreadable on light sectors) plus an always-visible legend (name · count · share · total), since mobile users can't hover the tooltip. |
+| `login/page.tsx` | Client component | Route `/login` — credentials form + Google/GitHub OAuth buttons; reads `?next=` to return you to where you were; maps Better Auth error codes to friendly messages. |
+| `signup/page.tsx` | Client component | Route `/signup` — name/email/password; `USER_ALREADY_EXISTS` nudges to sign in. |
+| `admin/users/page.tsx` | Client component | Route `/admin/users` — ADMIN-only user management: `authClient.admin.listUsers` + search, promote/demote via `setRole`; self-demotion blocked; client-side role pre-check (the server still enforces). |
+| `api/auth/[...all]/route.ts` | Route handler | The Better Auth catch-all mount — one line: `toNextJsHandler(auth)`. |
 | `globals.css` | CSS | Tailwind v4 entry + design tokens (CSS variables for both themes). |
 | `generated/prisma/` | Generated | **Do not edit.** Output of `npx prisma generate`. `client.ts` is what `lib/prisma.ts` imports; `models/*.ts` hold the row types. Checked in so builds don't need a generate step. |
 | `_data/` | Mixed | The table engine — see ✦3.4. |
 
-#### The API — five endpoints, four files
+#### The API — session-gated tickets & notes, plus the auth mount
 
-| Endpoint | Methods | Behavior |
-|---|---|---|
-| `/api/tickets` | GET | All tickets, newest first, **notes nested** via `include` — the view dialog never needs a second fetch |
-| | POST | Two-step create: insert → read `id` → update `ticketId = TKT-XXX` |
-| | DELETE | Bulk delete by `{ ids: [...] }` (`deleteMany`) |
-| `/api/tickets/[id]` | PATCH | Partial update via spread-conditional `data` (only sent fields are touched); normalizes `"IN PROGRESS"` → `"IN_PROGRESS"` |
-| | DELETE | Single delete (notes cascade in the DB) |
-| `/api/tickets/[id]/notes` | GET, POST | Notes scoped by URL; POST also bumps the ticket's `updatedAt` |
-| `/api/notes` | GET, POST | Same job as above, scoped by query param instead — two doors into one table (see ✦5) |
+| Endpoint | Methods | Auth | Behavior |
+|---|---|---|---|
+| `/api/auth/[...all]` | * | — | The Better Auth mount (sign-in/up/out, OAuth callbacks, admin endpoints) — backed by `lib/auth.ts` |
+| `/api/tickets` | GET | session | All tickets, newest first, **notes nested** via `include` — the view dialog never needs a second fetch |
+| | POST | session | Two-step create: insert → read `id` → update `ticketId = TKT-XXX` → `ticketCreatedEmail` to the customer |
+| | DELETE | **ADMIN** | Bulk delete by `{ ids: [...] }` (`deleteMany`) |
+| `/api/tickets/[id]` | PATCH | session | Partial update via spread-conditional `data` (only sent fields are touched); normalizes `"IN PROGRESS"` → `"IN_PROGRESS"`; a real status change fires `ticketStatusEmail` (no-op changes send nothing) |
+| | DELETE | **ADMIN** | Single delete (notes cascade in the DB) |
+| `/api/tickets/[id]/notes` | GET, POST | session | Notes scoped by URL; POST also bumps the ticket's `updatedAt` |
+| `/api/notes` | GET, POST | session | Same job as above, scoped by query param instead — two doors into one table (see ✦5) |
 
-Every route: raw ISO dates out, no display formatting, try/catch → JSON error
-with proper status codes. Params are awaited because Next 15+ makes dynamic
-route `params` a Promise.
+Every route opens with `requireUser()`/`requireRole("ADMIN")` (✦2 auth path)
+— the AGENT-cannot-delete rule lives here, not in the UI. Raw ISO dates out,
+no display formatting, try/catch → JSON error with proper status codes. Params
+are awaited because Next 15+ makes dynamic route `params` a Promise.
 
 ```mermaid
 flowchart LR
     subgraph app/api
-        T1["tickets/route.ts<br/>GET POST DELETE"]
-        T2["tickets/[id]/route.ts<br/>PATCH DELETE"]
-        N1["tickets/[id]/notes/route.ts<br/>GET POST"]
-        N2["notes/route.ts<br/>GET POST"]
+        A1["auth/[...all]/route.ts<br/>Better Auth mount"]
+        T1["tickets/route.ts<br/>GET·POST (session) DELETE (ADMIN)"]
+        T2["tickets/[id]/route.ts<br/>PATCH (session) DELETE (ADMIN)"]
+        N1["tickets/[id]/notes/route.ts<br/>GET POST (session)"]
+        N2["notes/route.ts<br/>GET POST (session)"]
     end
-    T1 --> P[("lib/prisma.ts")]
-    T2 --> P
-    N1 --> P
-    N2 --> P
+    A1 --> AUTH[("lib/auth.ts")]
+    T1 --> G["requireUser / requireRole<br/>(lib/rbac.ts)"]
+    T2 --> G
+    N1 --> G
+    N2 --> G
+    G -- "401/403" --> X["JSON error"]
+    G --> P[("lib/prisma.ts")]
+    T1 -- "create / status change" --> E["lib/email.ts → Resend"]
     P --> DB[("Neon")]
 ```
 
@@ -243,10 +326,10 @@ flowchart TD
 
 | File | Details worth knowing |
 |---|---|
-| **`data-table.tsx`** | The headless table + shadcn `<Table>` rendering. Prepends a **checkbox column** (selection), translates tab clicks into a `status` column filter, and applies global search **manually before** `useTable` (matches ticketId/subject/customerName). Critical line: `getRowId: row => String(row.id)` — without stable row ids, selection breaks across sort/page. Bulk-delete button intentionally avoids `window.confirm` (blocked in some iframes) and calls `onBulkDelete` → styled dialog in main.tsx. |
+| **`data-table.tsx`** | The headless table + shadcn `<Table>` rendering. Prepends a **checkbox column** (selection), applies the toolbar's multi-select status filter + search **manually before** `useTable` (matches ticketId/subject/customerName over the full local array). Critical line: `getRowId: row => String(row.id)` — without stable row ids, selection breaks across sort/page. Bulk-delete button intentionally avoids `window.confirm` (blocked in some iframes) and calls `onBulkDelete` → styled dialog in main.tsx. Pagination is **uncontrolled client-side** (`initialState.pagination`) — TanStack slices the in-memory array; page flips are instant with no network. |
 | **`columns.tsx`** | 6 columns: ID, Subject, Customer (avatar), Status (dropdown → meta callback), Date, Actions ("…" menu). The **`meta` indirection** is the key pattern: cells can't use hooks/store, so `data-table.tsx` passes callbacks through `table.options.meta` and cells pull them out. Date column sorts on the raw value (ISO strings sort chronologically) but *displays* `formatDate(...)` client-side. |
 | **`data-table-features.ts`** | TanStack v9's headline change: **no built-in features**. Sorting, pagination, selection etc. are registered here; anything unregistered is tree-shaken out. The exported `features` object is also the generic parameter (`DataTableFeatures`) used across all table files. |
-| **`pagination.tsx`** | Pure UI footer: page size select, page x of y, first/prev/next/last. All state lives in the table instance (`initialState.pagination`); client-side only (the API returns every row). |
+| **`pagination.tsx`** | Pure UI footer: page size select, page x of y, first/prev/next/last. Page state lives inside the table instance (uncontrolled, `initialState.pagination`) — every click is instant, no network. See PAGINATION.md for why client-side won. |
 | **`tempdata.ts`** | Defines the shared `Ticket`/`Note` types (mirrors the Prisma model; unifying them is a TODO) + the original 8 mock tickets. **Legacy**: real data comes from the API, but the type is still the app's contract. |
 | **`page.tsx`, `column-toggle.tsx`** | Leftovers: `page.tsx` is a dead demo page rendering mock data; `column-toggle.tsx` is an **empty file**. Neither is routed or imported by the app (see ✦5). |
 
@@ -274,13 +357,15 @@ flowchart TD
 
 | File | Role |
 |---|---|
-| **`layout.tsx`** | The app shell, wrapped around *every* page. Two sidebar states (mobile: slide-in overlay; desktop: collapse to zero width — hence two boolean states). Owns the **Create** dialog because the "New Ticket" button lives in its header. Uses a zustand **selector** (`state => state.addTicket`) so it re-renders on effectively nothing. Error contract: `addTicket` throws on failure → dialog stays open with typed text; store already showed the error toast. |
-| **`main.tsx`** | The orchestrator for the tickets page. Subscribes to the store, fetches on mount, owns tabs + search + **all four dialogs** (delete is *shared* between single/bulk via two id states). Renders loading skeletons. **Derives dialog ticket objects by id on every render** (`useMemo` lookup into `tickets`) so open dialogs stay live after optimistic updates instead of showing stale snapshots. |
+| **`layout.tsx`** | The app shell, wrapped around *every* page — inside a `<AuthGate>` (signed-out → `/login?next=…`), with `<UserMenu />` in the header. Two sidebar states (mobile: slide-in overlay; desktop: collapse to zero width — hence two boolean states). Owns the **Create** dialog because the "New Ticket" button lives in its header. Uses a zustand **selector** (`state => state.addTicket`) so it re-renders on effectively nothing. Error contract: `addTicket` throws on failure → dialog stays open with typed text; store already showed the error toast. |
+| **`main.tsx`** | The orchestrator for the tickets page. Subscribes to the store, fetches on mount, owns the **toolbar** (shadcn Tasks-example pattern: search with clear ✕, faceted Status filter with whole-DB count badges, View column-visibility menu, conditional Reset) + **all four dialogs** (delete is *shared* between single/bulk via two id states). Renders loading skeletons. **Derives dialog ticket objects by id on every render** (`useMemo` lookup into `tickets`) so open dialogs stay live after optimistic updates instead of showing stale snapshots. |
 | **`navbar.tsx`** | Config-driven links (`NavContent` array) with active-link highlighting via `usePathname()`. Receives `closeSidebar` from LayoutClient so navigating on mobile also closes the drawer. Footer links to the GitHub profile. |
 | **`ticket-form-dialog.tsx`** | **One component, two modes.** `initialData=null` → Create (used by LayoutClient); `initialData=ticket` → Edit (used by main.tsx). Zod schema validates subject/customerName/email/description; errors render inline under fields. A `useEffect` on `open` resets/pre-fills the fields each time. |
 | **`ticket-view-dialog.tsx`** | Full ticket detail + note history (notes arrive nested from GET /api/tickets). Has its own inline note composer calling `addNoteToTicket`. All dates formatted at render via `lib/datetime.ts` with legacy fallbacks. |
 | **`ticket-note-dialog.tsx`** | Standalone note composer with previous-notes preview. Same store action as the view dialog. Resets text/error on open. |
 | **`delete-confirm-dialog.tsx`** | Dumb confirmation dialog (styled replacement for `window.confirm`). `itemCount` drives singular/plural copy. |
+| **`auth-gate.tsx`** | Client-side session gate wrapping the app shell: `useSession()` → while pending render nothing, when signed out `router.replace("/login?next=<path>")`. UX mirror of the server gates — real enforcement is in `lib/rbac.ts`. |
+| **`user-menu.tsx`** | Header avatar dropdown: name + email + **role badge** (ADMIN/AGENT), the admin link for ADMINs (rendered via Base UI's `render={<Link href/>}` — Base UI has no `asChild`), and sign-out → `/login`. |
 | **`theme-provider.tsx`** | next-themes wrapper (`attribute="class"`, system default) + a hidden **"d" hotkey** toggle that ignores typing targets. |
 | **`ui/toggle-theme.tsx` + `hooks/use-theme-transition.tsx`** | The sun/moon button. The hook uses the **View Transitions API** for a circular reveal expanding from the click coordinates, with a plain fallback for Firefox/older Safari. |
 | **`mode-toggle.tsx`, `toast.tsx`** | **Legacy/demo, unreferenced**: `mode-toggle` is the old theme toggle (superseded by `ui/toggle-theme`); `toast.tsx` is a button showcase for the toast system. See ✦5. |
@@ -305,6 +390,8 @@ on **Base UI** (`@base-ui/react`) rather than Radix. All accept `className` via
 | `select.tsx` | pagination page-size |
 | `avatar.tsx`, `badge.tsx` | customer cell, status cell |
 | `toast.tsx` | **the toast system** — module-level manager singleton; `<Toaster/>` (root layout) and every `toast.add()/update()` caller share one manager, which is why the zustand store can fire toasts from outside React |
+| `chart.tsx` | **shadcn chart primitives** wrapping Recharts: `ChartContainer` (ResponsiveContainer + CSS-variable theming from a `ChartConfig`), `ChartTooltip`/`ChartTooltipContent`, `ChartLegend`. Each chart declares a config — the single source of truth for series labels + colors, mapped to `--color-<key>` variables so light/dark theming is automatic. |
+| `card.tsx` | shadcn Card primitives (Card/Header/Title/Description/Content) — the dashboard's uniform chart/stat-card chrome. |
 | `tooltip.tsx` | navbar footer |
 | `toggle-theme.tsx` | header (see ✦3.5) |
 
@@ -338,7 +425,7 @@ on **Base UI** (`@base-ui/react`) rather than Radix. All accept `className` via
 | `components.json` | shadcn CLI config: style, aliases (`@/components`, `@/lib/utils`), Base UI. |
 | `eslint.config.mjs`, `.prettierrc`, `.prettierignore` | Flat ESLint config (next + TS), Prettier formatting with the Tailwind class-sorting plugin. |
 | `postcss.config.mjs` | Tailwind v4 via `@tailwindcss/postcss`. |
-| `.env` / `.env.example` | `DATABASE_URL` (never commit the real one; `.env.example` documents the shape). |
+| `.env` / `.env.example` | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `FIRST_ADMIN_EMAIL`, Google/GitHub OAuth keys, `RESEND_API_KEY`/`EMAIL_FROM` — `.env.example` documents every one (never commit the real values). |
 | `AGENTS.md` | Instructions for AI coding agents working in this repo. |
 | `big-tech-prep-plan.md` | Interview prep notes (not app code). |
 
@@ -365,13 +452,26 @@ on **Base UI** (`@base-ui/react`) rather than Radix. All accept `className` via
    tree-shakeable; `getRowId` for stable selection.
 9. **Toast lifecycle** — one toast morphs loading → success/error via
    `toast.update(id, ...)`; store-agnostic thanks to the module-level manager.
+10. **Gate at the server, hide in the UI** — every API route opens with
+    `requireUser()`/`requireRole(...)` (defense in depth); `AuthGate` and the
+    admin page's role check only shape the UX. 401 (not signed in) vs 403
+    (wrong role) is kept semantically distinct.
+11. **One role vocabulary, two runtimes** — `lib/access.ts` is imported by the
+    Better Auth server instance and the client plugin alike, so `ADMIN`/`AGENT`
+    mean exactly the same thing in the DB, the API gates, and the UI types.
+12. **Mail never breaks the flow** — `sendAuthEmail` resolves `false` instead
+    of throwing; without a Resend key it logs `[email:dev-only]` and life goes on.
 
 ---
 
 ## 5. Known debts / TODOs (know these first)
 
-- **No server-side pagination/search** — GET /api/tickets returns all rows;
-  filtering and paging are client-side only. First scalability TODO.
+- **~~No server-side pagination~~ DONE — see PAGINATION.md.** Paging and the
+  total/status counts are server-side now (SQL LIMIT/OFFSET + COUNT + GROUP BY).
+  **Remaining:** server-side *search and status filtering* still client-side —
+  search only sees the current page's 10 rows (tab switches reset to page 1 as
+  a stopgap). The next scalability step is `?search=&status=` params on GET
+  /api/tickets.
 - **Two notes endpoints** (`/api/notes` and `/api/tickets/[id]/notes`) — same
   table, two doors; the store even falls back from one to the other.
 - **No input validation on the API** — Zod lives only in the form dialog; API
@@ -387,6 +487,15 @@ on **Base UI** (`@base-ui/react`) rather than Radix. All accept `className` via
 - **Minor lint debt** — `error: any` catch blocks, `set-state-in-effect`
   warnings.
 - **Seeder doesn't clear** before insert (duplication risk on re-run).
+- **`requireEmailVerification` is `false`** in `lib/auth.ts` (TODO: flip to
+  `true` once the verification flow is tested end-to-end with a real Resend key).
+- **`BETTER_AUTH_URL` must match the dev port** — `.env` says
+  `http://localhost:3000`; if another process takes 3000 and `pnpm dev` picks a
+  random port, email action links point at the wrong URL (and OAuth callbacks
+  must be registered with the matching URL).
+- **Resend sandbox sender** — the default `onboarding@resend.dev` only delivers
+  to the Resend account owner's own email; production needs a verified domain
+  (set `EMAIL_FROM` after adding one at resend.com/domains).
 
 ---
 
@@ -402,3 +511,13 @@ Follow one feature end-to-end — creating a ticket — in this order:
 6. `components/ticket-form-dialog.tsx` — how input is validated (Zod)
 7. `app/_data/columns.tsx` + `data-table.tsx` — how it renders (meta pattern)
 8. `lib/datetime.ts` — how its date displays in *your* timezone
+
+### …and the auth flow, end-to-end
+
+1. `lib/access.ts` — who may do what (the role vocabulary)
+2. `lib/auth.ts` — the Better Auth instance (providers, admin plugin, first-admin hook)
+3. `app/api/auth/[...all]/route.ts` — the HTTP mount
+4. `lib/rbac.ts` — how routes check the session
+5. `app/api/tickets/route.ts` — gates + notification email in action
+6. `lib/auth-client.ts` → `components/user-menu.tsx` → `app/admin/users/page.tsx` — the client side, from session hook to admin screen
+7. `lib/email.ts` — the mail that rides along

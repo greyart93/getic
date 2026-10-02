@@ -72,26 +72,38 @@ async function main() {
   // await prisma.ticket.deleteMany()
   // console.log('🧹 Cleared existing tickets and notes.')
 
-  // 3. Seed the tickets
+  // 3. Ensure the seed org exists (all seeded tickets live in this room)
+  const org = await prisma.organization.upsert({
+    where: { slug: 'seed-org' },
+    update: {},
+    create: {
+      id: 'org_seed',
+      name: 'Getic Demo Org',
+      slug: 'seed-org',
+      joinCode: 'DEMO0001',
+    },
+  })
+  console.log(`Using organization: ${org.name} (${org.id})`)
+
+  // 4. Seed the tickets (each row stamped with the seed org - NOT NULL).
+  //    upsert on ticketId = re-runnable: rows already seeded (unique ticketId)
+  //    are updated in place instead of crashing with P2002.
   for (const ticket of ticketData) {
-    // Remove the 'id' field so Prisma auto-generates it
-    // Map the fields to match your Prisma schema exactly
-    await prisma.ticket.create({
-      data: {
+    const data = {
+      customerName: ticket.customerName,
+      customerEmail: ticket.customerEmail,
+      subject: ticket.subject,
+      description: ticket.description,
+      status: ticket.status == "IN PROGRESS" ? "IN_PROGRESS" : ticket.status,
+      organizationId: org.id,
+    }
+    await prisma.ticket.upsert({
+      where: { ticketId: ticket.ticketId },
+      update: data,
+      create: {
         ticketId: ticket.ticketId,
-        customerName: ticket.customerName,
-        customerEmail: ticket.customerEmail,
-        subject: ticket.subject,
-        description: ticket.description,
-        status: ticket.status == "IN PROGRESS" ? "IN_PROGRESS" : ticket.status,
-        // If your JSON has notes, you can uncomment this:
-        // notes: ticket.notes ? {
-        //   create: ticket.notes.map((note: any) => ({
-        //     notesText: note.notesText,
-        //     createdAt: new Date(note.createdAt)
-        //   }))
-        // } : undefined
-      }
+        ...data,
+      },
     })
   }
 

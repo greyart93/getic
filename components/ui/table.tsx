@@ -10,9 +10,18 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       data-slot="table-container"
       className="w-full"
     >
+      {/* 👇 table-fixed + w-full = a WIDTH CONTRACT. With the browser's default
+          auto layout, column widths are computed from the CONTENT of the
+          visible rows — so sorting (which changes which rows are on the
+          page) or filtering could re-lay-out every column and make the whole
+          table visibly shift sideways. With `table-fixed`, widths come from
+          the contract (colgroup / first-row cells / inline width styles) and
+          content is clipped to its cell — column positions are stable no
+          matter what the data does. Individual columns opt into their share
+          via className width utilities on TableHead. */}
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm ", className)}
+        className={cn("w-full min-w-[760px] caption-bottom text-sm table-fixed", className)}
         {...props}
       />
     </div>
@@ -70,7 +79,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 overflow-hidden",
         className
       )}
       {...props}

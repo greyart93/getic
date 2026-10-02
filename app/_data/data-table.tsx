@@ -1,11 +1,11 @@
 //
 // ─── THE DATA TABLE (TanStack Table v9 + shadcn Table primitives) ───────
-// Headless table: TanStack computes rows/sorting/selection, the shadcn
-// <Table> components are pure HTML rendering. Data flow in:
-//   main.tsx (zustand tickets + search text + active tab)
-//     └─ DataTable: applies status filter + global search ITSELF (plain JS,
-//        see filteredData below), then hands the result to useTable for
-//        sorting/pagination/selection.
+// Headless table: TanStack computes rows/sorting/selection/pagination, the
+// shadcn <Table> components are pure HTML rendering. Data flow in:
+//   main.tsx (zustand tickets — the FULL table — + toolbar filter state)
+//     └─ DataTable: applies status filter + search ITSELF (plain JS, see
+//        filteredData below), then hands the result to useTable, which does
+//        sorting/pagination CLIENT-SIDE (instant — data is already local).
 // Actions flow out via `meta` callbacks -> main.tsx -> zustand store.
 
 "use client"
@@ -38,74 +38,68 @@ import { Trash2 } from "lucide-react"
 interface DataTableProps<TData extends RowData> {
   columns: ColumnDef<DataTableFeatures, TData>[]
   data: TData[]
-  filterStatus?: string
+  // ── TOOLBAR FILTER PROPS (shadcn Tasks pattern, state owned by main.tsx) ──
+  search?: string // global text: matches ticketId/subject/customer
+  statusFilter?: string[] // multi-select DB enum values; [] = no filter
+  columnVisibility?: Record<string, boolean> // View menu state (controlled)
+  onColumnVisibilityChange?: (v: Record<string, boolean>) => void
   onStatusChange?: (id: number, newStatus: "OPEN" | "IN PROGRESS" | "CLOSED") => void
-  globalSearch?: string 
   onDeleteTicket?: (id: number) => void
   onEditTicket?: (ticket: TData) => void
   onViewTicket?: (ticket: TData) => void
   onAddNoteTicket?: (ticket: TData) => void
   onBulkDelete?: (ids: number[]) => void
-  // 👇 NEW PROP FOR STATS
-  headerStats?: {
-    total: number
-    open: number
-    inProgress: number
-    closed: number
-  }
+}
 
+// ── COLUMN WIDTH CONTRACT (works with table-fixed in ui/table.tsx) ──
+// In a fixed-layout table the FIRST row of <th>s decides every column's
+// width. Pinning the narrow columns leaves Subject (no entry) to absorb the
+// remaining space — its cell content truncates, so it can flex safely.
+// Widths are min-w-style floors: at mobile the table just overflows its
+// scroll container horizontally instead of crushing columns.
+const HEAD_WIDTHS: Record<string, string> = {
+  select: "w-[44px]",
+  ticketId: "w-[110px]",
+  customerName: "w-[150px]",
+  status: "w-[130px]",
+  date: "w-[115px]",
+  actions: "w-[56px]",
 }
 
 export function DataTable<TData extends RowData>({
   columns,
   data,
-  filterStatus = "all",
+  search = "",
+  statusFilter = [],
+  columnVisibility = {},
+  onColumnVisibilityChange,
   onStatusChange,
-  globalSearch = "", 
   onDeleteTicket,   
   onEditTicket,
   onViewTicket,
   onAddNoteTicket,
   onBulkDelete,
-  headerStats,
-
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
 
-  // ── TAB FILTERING ──
-  // When the user clicks a tab (All / Open / In Progress / Closed) in main.tsx,
-  // this effect translates it into a TanStack columnFilter on the `status`
-  // column. Sorting is reset too — otherwise a sorted view could hide rows.
-  React.useEffect(() => {
-    setSorting([])
-    if (filterStatus === "all") {
-      setColumnFilters([])
-    } else {
-      const statusMap: Record<string, string> = {
-        "open": "OPEN",
-        "in_progress": "IN PROGRESS",
-        "closed": "CLOSED"
-      }
-      setColumnFilters([{ id: 'status', value: statusMap[filterStatus] }])
-    }
-  }, [filterStatus])
-
   // ── MANUAL FILTERING (pre-TanStack) ──
-  // Status + global search are applied to the raw array BEFORE useTable sees
-  // it. (Search matches ticketId, subject and customerName only.) Note the
-  // IN PROGRESS / IN_PROGRESS compatibility check — the DB enum uses the
-  // underscore, the UI uses the space. This could instead use TanStack's
-  // filterFns; it predates the v9 migration.
+  // Status (multi-select) + global search are applied to the raw array BEFORE
+  // useTable sees it. Search matches ticketId, subject and customerName only.
+  // Status matching covers both spellings — the DB enum uses the underscore
+  // (IN_PROGRESS), the UI passes the same enum value, legacy rows may not.
+  // Could instead use TanStack filterFns; this predates the v9 migration.
   const filteredData = React.useMemo(() => {
     let result = data
-    const statusFilter = columnFilters.find(f => f.id === 'status')
-    if (statusFilter) {
-      result = result.filter((item: any) => item.status === statusFilter.value || (statusFilter.value === "IN PROGRESS" && item.status === "IN_PROGRESS"))
+    if (statusFilter.length > 0) {
+      result = result.filter((item: any) =>
+        statusFilter.includes(item.status) ||
+        (item.status === "IN_PROGRESS" && statusFilter.includes("IN PROGRESS")) ||
+        (item.status === "IN PROGRESS" && statusFilter.includes("IN_PROGRESS"))
+      )
     }
-    if (globalSearch.trim() !== "") {
-      const searchLower = globalSearch.toLowerCase()
+    if (search.trim() !== "") {
+      const searchLower = search.toLowerCase()
       result = result.filter((item: any) => {
         return (
           String(item.ticketId || item.ticket_id || "").toLowerCase().includes(searchLower) ||
@@ -115,7 +109,7 @@ export function DataTable<TData extends RowData>({
       })
     }
     return result
-  }, [data, columnFilters, globalSearch])
+  }, [data, statusFilter, search])
 
   // ── CHECKBOX COLUMN (row selection) ──
   // Prepended to the user columns below. The header checkbox selects ALL rows
@@ -141,9 +135,9 @@ export function DataTable<TData extends RowData>({
     enableHiding: false,
   }
   // ── THE TABLE INSTANCE ──
-  // `state` is CONTROLLED: sorting/selection live in React state above so
-  // other code can read them. Everything else (pagination) is uncontrolled
-  // via initialState.
+  // `state` is CONTROLLED: sorting/selection/columnVisibility live in React
+  // state above. PAGINATION is UNCONTROLLED — TanStack slices the full local
+  // array itself (client-side, instant; see initialState below).
   const table = useTable({
     features,
     data: filteredData,
@@ -151,6 +145,13 @@ export function DataTable<TData extends RowData>({
     state: {
       sorting,
       rowSelection,
+      // 👇 Controlled column visibility: the View menu in the toolbar owns it.
+      columnVisibility,
+    },
+    onColumnVisibilityChange: (updater) => {
+      if (!onColumnVisibilityChange) return
+      const next = typeof updater === "function" ? updater(columnVisibility) : updater
+      onColumnVisibilityChange(next)
     },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
@@ -175,7 +176,9 @@ export function DataTable<TData extends RowData>({
 
   // ── SELECTED ROW IDS ──
   // rowSelection is a { "rowId": true } map, not an array — this memo converts
-  // it back to the numeric DB ids the bulk-delete API expects.
+  // it back to the numeric DB ids the bulk-delete API expects. Selection is
+  // per-page by design: rows vanish from the map when their page leaves, so a
+  // bulk delete can only ever target what the user currently sees.
   const selectedIds = React.useMemo(() => {
     const ids: number[] = []
     table.getSelectedRowModel().rows.forEach((row) => {
@@ -229,7 +232,16 @@ export function DataTable<TData extends RowData>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    // 👇 WIDTH CONTRACT: with table-fixed (see ui/table.tsx),
+                    //    the FIRST row of <th>s assigns every column its
+                    //    width for the entire table. Pinned widths for narrow
+                    //    columns; Subject has none → absorbs the remainder.
+                    //    Sorting/filtering changes row ORDER only — column
+                    //    positions can no longer shift.
+                    <TableHead
+                      key={header.id}
+                      className={HEAD_WIDTHS[header.column.id] ?? ""}
+                    >
                       {header.isPlaceholder ? null : (
                         <table.FlexRender header={header} />
                       )}

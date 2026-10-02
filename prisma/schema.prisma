@@ -1,38 +1,64 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 //
-// ─── DATABASE SCHEMA ─────────────────────────────────────────────────────────
-// Two tables: Ticket (the support request) and Note (internal agent comments).
-// One ticket has many notes; deleting a ticket cascades and removes its notes.
+// ─── DATABASE SCHEMA (GETIC + BETTER AUTH, MULTI-TENANT) ────────────────────
 //
+// TWO DATA PLANES:
+//   1. Better Auth contract tables (User/Session/Account/Verification +
+//      Organization/Member/Invitation for the organization plugin). Field
+//      names match the plugin's schema exactly — don't rename them.
+//   2. App tables (Ticket/Note). Ticket carries `organizationId` — the tenant
+//      wall. Every read/write in lib/rbac.ts filters on the session's active
+//      organization, so company A's data is never visible to company B.
+//
+// After editing: `npx prisma migrate dev` (dev) / `migrate deploy` (prod),
+// then `npx prisma generate` — client output in app/generated/prisma.
 
 generator client {
   provider = "prisma-client"
-  // 👇 Custom output: the generated PrismaClient types live in app/generated/prisma
-  //    (checked into git) instead of node_modules. Import like:
-  //    import { PrismaClient } from "../app/generated/prisma"
-  output   = "../app/generated/prisma"
+  // 👇 Custom output: generated types in app/generated/prisma (checked in)
+  output = "../app/generated/prisma"
 }
 
-// 👇 WHAT: The single Postgres database this app talks to (Neon in prod).
-// 👇 WHY:  No url line here means Prisma reads DATABASE_URL from the environment
-//          (.env locally, Vercel env vars in production).
 datasource db {
   provider = "postgresql"
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// ─── APP TABLES (tenant-scoped) ───────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════
 
-// 👇 WHAT: The main table. One row = one support ticket.
-// 👇 WHY:  `ticketId` is a HUMAN-FRIENDLY display code ("TKT-001") kept separate
-//          from the numeric PK `id`. POST /api/tickets writes it in two steps:
-//          create the row (placeholder ""), read the generated id, then update
-//          with `TKT-${String(id).padStart(3, "0")}`. @unique stops duplicates.
-//          Prisma fills createdAt (on insert) and updatedAt (on every update).
-//          ⚠️ These stay raw UTC — never format dates on the server; the client
-//          renders them in the viewer's timezone (see lib/datetime.ts).
+// 👇 Ticket states as a NATIVE Postgres enum — invalid values are rejected by
+//    the DB itself. UI tab filters map to these exact strings ("open" → OPEN,
+//    "in_progress" → IN_PROGRESS, "closed" → CLOSED — _data/data-table.tsx).
+enum Status {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+// 👇 ACTIVITY LOG event kinds. Written by lib/activity.ts from auth hooks
+//    (invites) and API routes (tickets/members). ORG_* rows carry the
+//    organizationId (visible to every member of that room); personal rows
+//    (EMAIL_* …) carry only the actor and show on the notifications page.
+enum ActivityType {
+  // invites & joining
+  INVITE_SENT
+  INVITE_ACCEPTED
+  INVITE_CANCELED
+  JOINED_VIA_CODE
+  // room/team
+  ORG_CREATED
+  ROLE_CHANGED
+  MEMBER_REMOVED
+  // desk
+  TICKET_CREATED
+  STATUS_CHANGED
+  NOTE_ADDED
+}
+
+// 👇 WHAT: One support ticket. `ticketId` is the human code ("TKT-001");
+//    `id` is the numeric PK used to build it (POST /api/tickets pads it).
+// 👇 TENANT: organizationId is NOT NULL — a ticket always belongs to exactly
+//    one org; every query filters by it (the WHERE clause IS the wall).
 model Ticket {
   id            Int      @id @default(autoincrement())
   ticketId      String   @unique @default("")
@@ -44,14 +70,19 @@ model Ticket {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  notes Note[]  // 👈 back-reference: ticket.notes lists all attached notes
+  // 👇 THE TENANT WALL: set from the session's active organization on create,
+  //    filtered on every read. Cascade on org delete (whole room removed).
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  notes Note[] // 👈 back-reference: ticket.notes lists all attached notes
+
+  @@index([organizationId, createdAt])
 }
 
-// 👇 WHAT: An internal comment attached to a ticket (agent-visible only).
-// 👇 WHY:  The FK `ticketId` -> Ticket.id with `onDelete: Cascade` means deleting
-//          a ticket auto-deletes all its notes — no orphan rows, and the DELETE
-//          routes need no manual cleanup. This is a talking point in interviews:
-//          referential integrity enforced by the database, not app code.
+// 👇 Internal comment attached to a ticket. Tenancy is INHERITED from the
+//    ticket (no own organizationId): you can only reach a note through its
+//    ticket, and tickets are org-scoped — single wall, one enforcement point.
 model Note {
   id        Int      @id @default(autoincrement())
   ticketId  Int
@@ -61,13 +92,185 @@ model Note {
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
-// 👇 WHAT: The three ticket states, stored as a NATIVE Postgres enum.
-// 👇 WHY:  Invalid values are rejected by the DB itself, not just app code.
-//          The UI tab filters map onto these exact strings:
-//          "open" -> OPEN, "in_progress" -> IN_PROGRESS, "closed" -> CLOSED
-//          (see the statusMap in app/_data/data-table.tsx).
-enum Status {
-  OPEN
-  IN_PROGRESS
-  CLOSED
+// ═════════════════════════════════════════════════════════════════════════
+// ─── BETTER AUTH CORE TABLES ──────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════
+
+// 👇 App-wide RBAC (ADMIN manages users/roles, AGENT works tickets) — on the
+//    user row for the Admin plugin's global checks (lib/access.ts).
+//    ORG-SCOPED roles live separately on Member.role (OWNER | ADMIN | AGENT
+//    within a single org) — a user can be ADMIN in one org, AGENT in another.
+enum Role {
+  ADMIN
+  AGENT
+}
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  role          Role     @default(AGENT)
+  // 👇 Admin-plugin fields (ban system) — required by the plugin's schema check
+  banned        Boolean  @default(false)
+  banReason     String?
+  banExpires    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  memberships     Member[]
+  invitationsSent Invitation[] @relation("inviter")
+  presence        Presence?
+}
+
+// WHO'S ONLINE: one row per user, refreshed by a 25s heartbeat from any
+// page they have open (components/online-agents.tsx). "Online" = lastSeenAt
+// within 60s AND scoped to their ACTIVE organization, so the avatar group
+// only ever shows teammates of the room you are working in.
+model Presence {
+  userId         String   @id
+  organizationId String
+  lastSeenAt     DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, lastSeenAt])
+}
+
+model Session {
+  id         String   @id
+  expiresAt  DateTime
+  token      String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  ipAddress  String?
+  userAgent  String?
+  // 👇 Admin-plugin field (impersonation audit trail)
+  impersonatedBy String?
+  // 👇 Organization plugin: the ACTIVE org for this session ("which room am
+  //    I in"). The plugin reads/writes it directly — setActive switches it.
+  activeOrganizationId String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// ─── ORGANIZATIONS (multi-tenant "rooms") ─────────────────────────────────
+// Company signs up → first user becomes ADMIN and auto-creates their org.
+// Agents join via invite (≤10 ADMIN + ≤1000 AGENT per org — enforced in
+// lib/auth.ts's sendInvitationEmail BEFORE the invite row is written).
+// Every ticket row carries organizationId; queries ALWAYS filter by the
+// session's active org — that filter is the tenant wall.
+// ═════════════════════════════════════════════════════════════════════════
+
+// 👇 Better Auth organization plugin contract tables (field names are the
+//    plugin's schema — don't rename; regenerate via @better-auth/cli if the
+//    config in lib/auth.ts changes shape).
+model Organization {
+  id        String   @id
+  name      String
+  slug      String   @unique
+  logo      String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  // JOIN-BY-CREDENTIALS: a second way into a room besides email invites.
+  // joinCode is the public "room id" (shown to members, shareable);
+  // joinPasswordHash is a scrypt hash (better-auth/crypto hashPassword -
+  // same format the sign-in flow uses). Privacy rule: the room NAME and its
+  // member list are only returned when BOTH code and password are correct -
+  // wrong/missing password gets a generic "not found", never a name leak.
+  joinCode         String  @unique
+  joinPasswordHash String?
+
+  members     Member[]
+  invitations Invitation[]
+  tickets     Ticket[]
+  activities  Activity[]
+}
+
+model Member {
+  id             String   @id
+  organizationId String
+  userId         String
+  // 👇 ORG-SCOPED role: "OWNER" | "ADMIN" | "AGENT" (org creator gets OWNER
+  //    via creatorRole). Distinct from the global User.role — privilege is
+  //    per-tenant: OWNER in one org, plain AGENT in another.
+  role           String   @default("AGENT")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+// 👇 WHAT: one row per noteworthy event, surfaced on /notifications.
+// WHO SEES WHAT: rows with organizationId are visible to every member of
+// that room (org-scoped news feed); rows with only actorId are personal
+// (e.g. "you were invited to X"). READ-ONLY from the app's perspective —
+// nothing updates/deletes rows; the page shows the last 100.
+model Activity {
+  id             String       @id @default(cuid())
+  type           ActivityType
+  title          String
+  description    String
+  // 👇nullable: INVITE_SENT etc. are org events; a future personal event
+  //   has none and is only visible to its actor.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actorName      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model Invitation {
+  id             String   @id
+  organizationId String
+  email          String
+  role           String   @default("AGENT")
+  status         String   @default("pending") // pending | accepted | rejected | canceled
+  expiresAt      DateTime
+  inviterId      String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter      User         @relation("inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([organizationId])
 }

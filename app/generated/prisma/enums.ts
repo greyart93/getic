@@ -16,3 +16,27 @@ export const Status = {
 } as const
 
 export type Status = (typeof Status)[keyof typeof Status]
+
+
+export const ActivityType = {
+  INVITE_SENT: 'INVITE_SENT',
+  INVITE_ACCEPTED: 'INVITE_ACCEPTED',
+  INVITE_CANCELED: 'INVITE_CANCELED',
+  JOINED_VIA_CODE: 'JOINED_VIA_CODE',
+  ORG_CREATED: 'ORG_CREATED',
+  ROLE_CHANGED: 'ROLE_CHANGED',
+  MEMBER_REMOVED: 'MEMBER_REMOVED',
+  TICKET_CREATED: 'TICKET_CREATED',
+  STATUS_CHANGED: 'STATUS_CHANGED',
+  NOTE_ADDED: 'NOTE_ADDED'
+} as const
+
+export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType]
+
+
+export const Role = {
+  ADMIN: 'ADMIN',
+  AGENT: 'AGENT'
+} as const
+
+export type Role = (typeof Role)[keyof typeof Role]

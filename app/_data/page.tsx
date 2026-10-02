@@ -1,3 +1,5 @@
+// ⚠️ DEAD DEMO FILE — no route renders this. Kept as a static example of
+// DataTable usage; pagination props are stubbed because it never fetches.
 import { columns } from "./columns"
 import type { Ticket } from "./tempdata"
 import { tickets } from "./tempdata"

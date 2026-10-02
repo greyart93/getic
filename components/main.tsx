@@ -1,9 +1,21 @@
 //
 // ─── MAIN TICKETS PAGE (the whole UI orchestrator) ─────────────────────
-// Owns: tabs, search box, the data table, and ALL four dialogs. It is the
-// only place that connects the table's meta callbacks to the zustand store.
+// Owns: the toolbar, the data table, and ALL four dialogs. It is the only
+// place that connects the table's meta callbacks to the zustand store.
 // Dialogs live here (not inside the table) so their state survives
 // pagination/sorting changes and they can be reused elsewhere.
+//
+// ── TOOLBAR (shadcn "Tasks" example pattern) ──
+//   [ Search…  (×)]  [Status ▾ (faceted, with counts)]  [View ▾ (columns)]  [Reset]
+// - Search: matches ticketId/subject/customer across ALL tickets (instant —
+//   they're already in memory); shows an ✕ to clear (the example's "Reset"
+//   affordance).
+// - Status: MULTI-select checkboxes with live counts derived from the full
+//   local array — a badge always equals what the filter will show.
+//   Empty selection = no filter.
+// - View: show/hide table columns (Customer / Status / Date) via TanStack's
+//   controlled columnVisibility state.
+// - Reset: appears only when a filter is active; clears everything.
 //
 // Rendering pipeline: zustand tickets -> this component -> DataTable ->
 // columns.tsx cells -> callbacks come back through table `meta` -> zustand
@@ -11,18 +23,32 @@
 
 "use client"
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useState, useMemo, useEffect } from "react" // 👈 Added useEffect
+import { useState, useMemo, useEffect } from "react"
 import { DataTable } from "@/app/_data/data-table"
 import { columns } from "@/app/_data/columns"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { TicketFormDialog } from "@/components/ticket-form-dialog"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { TicketViewDialog } from "@/components/ticket-view-dialog"
 import { TicketNoteDialog } from "@/components/ticket-note-dialog"
-import { Search } from "lucide-react";
+import { Search, X, CircleCheck, SlidersHorizontal, Eye, ChevronDown, Filter } from "lucide-react";
 import { useTicketStore } from "@/lib/store"; // 👈 Import store
+import { OnlineAgents } from "@/components/online-agents";
 import type { Ticket } from "@/app/_data/tempdata";
+
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export default function Main() {
     // ── 1. STORE HOOKUP ──
@@ -41,14 +67,40 @@ export default function Main() {
 
     // ── 2. FIRST LOAD: pull everything from the DB (the only fetch call) ──
     // Empty dep array = once per mount. Subsequent "freshness" comes from the
-    // optimistic updates in the store, not re-fetching.
+    // optimistic updates in the store, not re-fetching. Filter, search and
+    // pagination are all instant local operations on this full array.
     useEffect(() => {
         fetchTickets()
     }, [])
 
     // ── LOCAL UI STATE (stays local — no reason to put it in the store) ──
-    const [activeTab, setActiveTab] = useState("all")            // which filter tab
     const [globalSearch, setGlobalSearch] = useState<string>("") // search box text
+    // 👇 Toolbar filter state (shadcn Tasks pattern)
+    const [statusFilter, setStatusFilter] = useState<string[]>([]) // multi-select; [] = no filter
+    const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({}) // View menu
+
+    // ── FACETED STATUS FILTER (with live counts) ──
+    // Counts derive from the store's FULL tickets array — the same source the
+    // table filters, so a badge always equals exactly what the filter will
+    // show. Toggling is pure local state: zero network, instant re-render.
+    const statusOptions = useMemo(() => [
+        { value: "OPEN", label: "Open", count: tickets.filter(t => t.status === 'OPEN').length },
+        { value: "IN_PROGRESS", label: "In Progress", count: tickets.filter(t => t.status === 'IN_PROGRESS' || t.status === 'IN PROGRESS').length },
+        { value: "CLOSED", label: "Closed", count: tickets.filter(t => t.status === 'CLOSED').length },
+    ], [tickets]);
+
+    const toggleStatusFilter = (value: string) => {
+        setStatusFilter(prev =>
+            prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+        )
+    }
+
+    // "Reset" shows only when something is actually filtered (Tasks example rule)
+    const isFiltered = statusFilter.length > 0 || globalSearch.trim() !== ""
+    const resetFilters = () => {
+        setStatusFilter([])
+        setGlobalSearch("")
+    }
 
     // ── DIALOG STATE ──
     // One dialog = `open` flag + "which ticket" id. Delete is SHARED between
@@ -158,17 +210,6 @@ export default function Main() {
     //     ];
     // }, [tickets]);
 
-    // ── TAB COUNTS ── recomputed only when `tickets` changes (useMemo).
-    // Counts include IN_PROGRESS normalization; note main uses only the
-    // underscore spelling while the dashboard checks both.
-    const statData = useMemo(() => {
-        const total = tickets.length;
-        const open = tickets.filter(t => t.status === 'OPEN').length;
-        const inProgress = tickets.filter(t => t.status === 'IN_PROGRESS').length;
-        const closed = tickets.filter(t => t.status === 'CLOSED').length;
-        return { total, open, inProgress, closed };
-        }, [tickets]);
-
     return (
         <main>
             {/* Summary Cards */}
@@ -178,28 +219,222 @@ export default function Main() {
                 ))}
             </div> */}
 
-            {/* Tabs + Search */}
-            <div className="mt-5 md:mt-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <Tabs defaultValue="all" onValueChange={setActiveTab}>
-                    <TabsList variant={"pill"} className='md:py-5 md:px-1.5 py-0.5 px-1.25'>
-                        <TabsTrigger value="all" className='md:p-4  text-[12px] md:text-[14px]'>All ({statData.total})</TabsTrigger>
-                        <TabsTrigger value="open" className='md:p-4 text-[12px] md:text-[14px]'>Open ({statData.open})</TabsTrigger>
-                        <TabsTrigger value="in_progress" className='md:p-4 text-[12px] md:text-[14px]'>In Progress ({statData.inProgress})</TabsTrigger>
-                        <TabsTrigger value="closed" className='md:p-4 text-[12px] md:text-[14px]'>Closed ({statData.closed})</TabsTrigger>
+            {/* WHO'S ONLINE (admin only): teammates of the ACTIVE org.
+                Hover the group to expand avatars; hover one for the email. */}
+            <div className="flex justify-end">
+                <OnlineAgents />
+            </div>
 
-                    </TabsList>
-                </Tabs>
-                <div className="w-full sm:w-auto">
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by ID, Subject, Customer..."
-                            value={globalSearch}
-                            onChange={(event) => setGlobalSearch(event.target.value)}
-                            className="h-10 bg-background w-full sm:w-75 pl-9"
-                        />
-                    </div>
+            {/* ── TOOLBAR (shadcn Tasks pattern): search + faceted filter + view + reset ── */}
+            <div className="mt-5 md:mt-4 flex sm:flex-row items-stretch sm:items-center gap-2.5">
+                {/* Search — with the ✕ clear affordance from the example */}
+                <div className="relative w-full sm:w-75">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by ID, Subject, Customer..."
+                        value={globalSearch}
+                        onChange={(event) => setGlobalSearch(event.target.value)}
+                        className="h-10 bg-background w-full pl-9 pr-9"
+                    />
+                    {globalSearch && (
+                        <button
+                            onClick={() => setGlobalSearch("")}
+                            className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                            aria-label="Clear search"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
+
+                {/* MOBILE-ONLY combined filters menu: everything the Status
+                    and View dropdowns offer, behind one filter icon to the
+                    right of the search bar (those two are hidden on mobile
+                    - three stacked dropdowns did not fit). */}
+                <div className="sm:hidden shrink-0">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            render={
+                                <Button variant="outline" className="h-10 w-10 justify-center p-0 relative" aria-label="Filters" />
+                            }
+                        >
+                            <Filter className="h-4 w-4" />
+                            {statusFilter.length > 0 && (
+                                <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                                    {statusFilter.length}
+                                </span>
+                            )}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuGroup>
+                                <DropdownMenuLabel>Filter by status</DropdownMenuLabel>
+                                {statusOptions.map((option) => (
+                                    <DropdownMenuCheckboxItem
+                                        key={option.value}
+                                        checked={statusFilter.includes(option.value)}
+                                        onCheckedChange={() => toggleStatusFilter(option.value)}
+                                        closeOnClick={false}
+                                    >
+                                        <span className="flex-1 flex items-center justify-between gap-2">
+                                            {option.label}
+                                            <Badge variant="outline" className="rounded-sm px-1.5 font-normal text-muted-foreground">
+                                                {option.count}
+                                            </Badge>
+                                        </span>
+                                    </DropdownMenuCheckboxItem>
+                                ))}
+                            </DropdownMenuGroup>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuGroup>
+                                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                                {["customerName", "status", "date"].map((colId) => {
+                                    const labels: Record<string, string> = {
+                                        customerName: "Customer", status: "Status", date: "Date",
+                                    }
+                                    return (
+                                        <DropdownMenuCheckboxItem
+                                            key={colId}
+                                            checked={columnVisibility[colId] !== false}
+                                            onCheckedChange={(checked) =>
+                                                setColumnVisibility(prev => ({ ...prev, [colId]: !!checked }))
+                                            }
+                                            closeOnClick={false}
+                                        >
+                                            {labels[colId]}
+                                        </DropdownMenuCheckboxItem>
+                                    )
+                                })}
+                            </DropdownMenuGroup>
+                            {isFiltered && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={resetFilters}>
+                                        <SlidersHorizontal className="h-4 w-4" />
+                                        Reset all
+                                    </DropdownMenuItem>
+                                </>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+
+                <Separator orientation="vertical" className="hidden sm:block !h-10" />
+
+                {/* Faceted status filter — checkbox items + count badges.
+                    Shows ONE selected value on the trigger (Tasks pattern),
+                    or N selected for multi, or the plain label when empty. */}
+                <DropdownMenu>
+                    {/* Base UI note: the trigger composes a custom element via the
+                        `render` prop (Radix's asChild equivalent) */}
+                    <DropdownMenuTrigger
+                        render={
+                            <Button variant="outline" size="lg" className="border-dashed justify-between w-full sm:w-auto hidden sm:flex" />
+                        }
+                    >
+                        <span className="flex items-center gap-2">
+                            <CircleCheck className="h-4 w-4" />
+                            Status
+                        </span>
+                        {statusFilter.length === 1 ? (
+                            <Badge variant="outline" className="rounded-sm px-1.5 font-normal">
+                                {statusOptions.find(o => o.value === statusFilter[0])?.label}
+                            </Badge>
+                        ) : statusFilter.length > 1 ? (
+                            <Badge variant="outline" className="rounded-sm px-1.5 font-normal">
+                                {statusFilter.length} selected
+                            </Badge>
+                        ) : (
+                            <ChevronDown className="h-4 w-4 opacity-50" />
+                        )}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-52">
+                        {/* Base UI: a GroupLabel (what DropdownMenuLabel renders)
+                            is only valid INSIDE a group — so label + items are
+                            wrapped together. */}
+                        <DropdownMenuGroup>
+                            <DropdownMenuLabel>Filter by status</DropdownMenuLabel>
+                            {statusOptions.map((option) => (
+                                <DropdownMenuCheckboxItem
+                                    key={option.value}
+                                    checked={statusFilter.includes(option.value)}
+                                    onCheckedChange={() => toggleStatusFilter(option.value)}
+                                    closeOnClick={false}
+                                >
+                                    <span className="flex-1 flex items-center justify-between gap-2">
+                                        {option.label}
+                                        {/* Count badge — derived from the full local array,
+                                            so it always matches what the filter will show */}
+                                        <Badge variant="outline" className="rounded-sm px-1.5 font-normal text-muted-foreground">
+                                            {option.count}
+                                        </Badge>
+                                    </span>
+                                </DropdownMenuCheckboxItem>
+                            ))}
+                        </DropdownMenuGroup>
+                        {statusFilter.length > 0 && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => setStatusFilter([])}>
+                                    <X className="h-4 w-4" />
+                                    Clear filter
+                                </DropdownMenuItem>
+                            </>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* View — show/hide columns (TanStack controlled visibility).
+                    columnIds must match columns.tsx: ticketId, subject,
+                    customerName, status, date. */}
+                <DropdownMenu>
+                    <DropdownMenuTrigger
+                        render={
+                            <Button variant="outline" size="lg" className="justify-between w-full sm:w-auto hidden sm:flex" />
+                        }
+                    >
+                        <span className="flex items-center gap-2">
+                            <Eye className="h-4 w-4" />
+                            View
+                        </span>
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                        {/* Base UI: GroupLabel must live inside a group */}
+                        <DropdownMenuGroup>
+                            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                            {["customerName", "status", "date"].map((colId) => {
+                                const labels: Record<string, string> = {
+                                    customerName: "Customer", status: "Status", date: "Date",
+                                }
+                                return (
+                                    <DropdownMenuCheckboxItem
+                                        key={colId}
+                                        checked={columnVisibility[colId] !== false} // undefined = visible
+                                        onCheckedChange={(checked) =>
+                                            setColumnVisibility(prev => ({ ...prev, [colId]: !!checked }))
+                                        }
+                                        closeOnClick={false}
+                                    >
+                                        {labels[colId]}
+                                    </DropdownMenuCheckboxItem>
+                                )
+                            })}
+                        </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Reset — only visible while a filter is active (Tasks pattern) */}
+                {isFiltered && (
+                    <Button
+                        variant="ghost"
+                        size="lg"
+                        onClick={resetFilters}
+                        className="border-dashed justify-center"
+                    >
+                        Reset
+                        <SlidersHorizontal className="h-4 w-4" />
+                    </Button>
+                )}
             </div>
 
             {/* Data Table */}
@@ -230,17 +465,16 @@ export default function Main() {
                     <DataTable 
                         columns={columns} 
                         data={tickets} 
-                        filterStatus={activeTab} 
-                        globalSearch={globalSearch}
+                        search={globalSearch}
+                        statusFilter={statusFilter}
+                        columnVisibility={columnVisibility}
+                        onColumnVisibilityChange={setColumnVisibility}
                         onStatusChange={handleStatusChange}
                         onDeleteTicket={handleDeleteRequest}
                         onEditTicket={handleEditRequest}
                         onViewTicket={handleViewRequest}
                         onAddNoteTicket={handleAddNoteRequest}
                         onBulkDelete={handleBulkDeleteRequest}
-                        // 👇 PASS STATS TO THE TABLE
-                        headerStats={statData}
-
                     />
                 )}
             </div>

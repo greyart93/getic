@@ -1,4 +1,4 @@
-import { IBM_Plex_Sans, Playwrite_IN } from "next/font/google"
+import { IBM_Plex_Sans, Playwrite_IN, Manrope, Instrument_Serif } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -9,15 +9,31 @@ import { Toaster } from "@/components/ui/toast"
 import { Metadata } from "next";
 
 const ibmPlexSans = IBM_Plex_Sans({ subsets: ['latin'], variable: '--font-sans', preload:false })
+// Playwrite has no preloadeable subsets, so Next never emits <link
+// rel=preload> for it (it can't trigger unused-preload warnings).
 const playwriteIn = Playwrite_IN({ 
   weight: ['100', '200', '300', '400'], 
   variable: '--font-playwrite', 
 })
 
+// >> Landing-page type system (portfolio-matched): Manrope for UI text,
+//    Instrument Serif for the italic accent words inside headings.
+//    Both preload:false - they are only rendered on the landing/auth pages,
+//    so a global preload would just produce unused-preload warnings on
+//    /tickets, /dashboard etc.
+const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', preload: false })
+const instrumentSerif = Instrument_Serif({
+  weight: '400',
+  style: ['normal', 'italic'],
+  subsets: ['latin'],
+  variable: '--font-instrument',
+  preload: false,
+})
+
 export const metadata: Metadata = {
   title: {
-    default: "GeTiC - Support Ticket Dashboard",
-    template: "%s | GeTiC",
+    default: "Getic - Support Ticket Dashboard",
+    template: "%s | Getic",
   },
   description: "A modern, efficient support ticket management dashboard built with Next.js.",
   metadataBase: new URL("https://github.com/greyart93/getic"), 
@@ -25,16 +41,16 @@ export const metadata: Metadata = {
   creator: "Saud Mullaji",
   keywords: ["tickets", "support", "dashboard", "nextjs", "prisma", "zustand"],
   openGraph: {
-    title: "GeTiC - Support Ticket Dashboard",
+    title: "Getic - Support Ticket Dashboard",
     description: "A modern, efficient support ticket management dashboard.",
     url: "https://github.com/greyart93/getic",
-    siteName: "GeTiC",
+    siteName: "Getic",
     images: [
       {
         url: "/favicon.ico", 
         width: 10,
         height: 10,
-        alt: "GeTiC Logo",
+        alt: "Getic Logo",
       },
     ],
     locale: "en_US",
@@ -42,7 +58,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "GeTiC - Support Ticket Dashboard",
+    title: "Getic - Support Ticket Dashboard",
     description: "A modern, efficient support ticket management dashboard.",
     images: ["icon.webp"],
   },
@@ -72,7 +88,7 @@ export default function RootLayout({
       // 👇 Required by next-themes: suppresses the React hydration warning
       //    caused by the theme class being injected before hydration.
       suppressHydrationWarning={true}
-      className={cn("antialiased", ibmPlexSans.variable, playwriteIn.variable)}
+      className={cn("antialiased", ibmPlexSans.variable, playwriteIn.variable, manrope.variable, instrumentSerif.variable)}
     >
       <body>
 

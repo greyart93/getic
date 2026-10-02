@@ -1,3 +1,5 @@
+// ⚠️ DEAD DEMO FILE — no route renders this. Kept as a static example of
+// DataTable usage; pagination props are stubbed because it never fetches.
 import { columns } from "@/app/_data/columns"
 import type { Ticket } from "@/app/_data/tempdata"
 import { tickets } from "@/app/_data/tempdata"
@@ -8,12 +10,12 @@ async function getData(): Promise<Ticket[]> {
   return tickets
 }
 
-export default async function DemoPage({ filterStatus = "all" }: { filterStatus?: string }) {
+export default async function DemoPage() {
   const data = await getData()
 
   return (
     <div className="container mx-auto py-10">
-      <DataTable columns={columns} data={data} filterStatus={filterStatus}/>
+      <DataTable columns={columns} data={data} />
     </div>
   )
 }
