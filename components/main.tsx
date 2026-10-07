@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { TicketFormDialog } from "@/components/ticket-form-dialog"
+import { TicketFormDialog, type TicketFormValues } from "@/components/ticket-form-dialog"
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
 import { TicketViewDialog } from "@/components/ticket-view-dialog"
 import { TicketNoteDialog } from "@/components/ticket-note-dialog"
@@ -176,7 +176,7 @@ export default function Main() {
     }
 
     // 6. HANDLE EDIT SAVE (Uses Zustand)
-    const handleEditSave = (data: { subject: string; customerName: string; customerEmail: string; description: string }) => {
+    const handleEditSave = (data: TicketFormValues) => {
         if (ticketToEdit) {
             updateTicket(ticketToEdit.id, data)
             setEditDialogOpen(false)
@@ -287,9 +287,10 @@ export default function Main() {
                             <DropdownMenuSeparator />
                             <DropdownMenuGroup>
                                 <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                                {["customerName", "status", "date"].map((colId) => {
+                                {["customerName", "priority", "assignee", "status", "date"].map((colId) => {
                                     const labels: Record<string, string> = {
-                                        customerName: "Customer", status: "Status", date: "Date",
+                                        customerName: "Customer", priority: "Priority", assignee: "Assignee",
+                                        status: "Status", date: "Date",
                                     }
                                     return (
                                         <DropdownMenuCheckboxItem
@@ -402,9 +403,10 @@ export default function Main() {
                         {/* Base UI: GroupLabel must live inside a group */}
                         <DropdownMenuGroup>
                             <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                            {["customerName", "status", "date"].map((colId) => {
+                            {["customerName", "priority", "assignee", "status", "date"].map((colId) => {
                                 const labels: Record<string, string> = {
-                                    customerName: "Customer", status: "Status", date: "Date",
+                                    customerName: "Customer", priority: "Priority", assignee: "Assignee",
+                                    status: "Status", date: "Date",
                                 }
                                 return (
                                     <DropdownMenuCheckboxItem

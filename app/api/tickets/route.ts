@@ -8,6 +8,10 @@
 //   POST/GET  -> any signed-in member of the ACTIVE organization
 //   DELETE    -> ADMIN or OWNER of that organization (destructive bulk op)
 //
+// -- ASSIGNMENT (assigneeId) -- the id must be a Member of THIS org; the
+//   membership check below IS the tenant wall for the relation (a crafted
+//   body pointing at a foreign user gets a 400, never a link).
+//
 // -- TENANCY: every query filters by organizationId from the session's
 //    activeOrganizationId (never a request param) - company A can never
 //    read, create into, or delete company B's tickets.
@@ -48,6 +52,28 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
 
+    // >> OPTIONAL FIELDS from the create form. priority is whitelisted
+    //    against the DB enum (anything else falls back to the default);
+    //    assigneeId must belong to THIS org - the membership lookup is the
+    //    tenant wall for the relation (same idea as the organizationId
+    //    column: never trust a client-supplied id).
+    const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
+    const priority = PRIORITIES.includes(body.priority) ? body.priority : 'MEDIUM'
+
+    let assigneeId: string | null = null
+    if (body.assigneeId) {
+      const member = await prisma.member.findFirst({
+        where: { organizationId, userId: String(body.assigneeId) },
+      })
+      if (!member) {
+        return NextResponse.json(
+          { error: 'Assignee is not a member of this organization' },
+          { status: 400 }
+        )
+      }
+      assigneeId = body.assigneeId
+    }
+
     // STEP 1: create the row first, because we need the auto-incremented `id`
     // to build the human-friendly display code ("TKT-001", "TKT-002", ...)
     // >> organizationId comes from the SESSION, never the body - a client
@@ -60,6 +86,8 @@ export async function POST(request: Request) {
         subject: body.subject,
         description: body.description || 'Created from UI',
         status: 'OPEN', // >> every new ticket starts here (enum value)
+        priority,
+        assigneeId,
       },
     })
 
@@ -70,6 +98,9 @@ export async function POST(request: Request) {
     const newTicket = await prisma.ticket.update({
       where: { id: created.id },
       data: { ticketId },
+      // >> include the assignee so the optimistic store row can render the
+      //    avatar/name without a refetch (same shape as the GET below)
+      include: { assignee: { select: { id: true, name: true, email: true, image: true } } },
     })
 
     // >> EMAIL: "we got your ticket" to the customer. Fire-and-wait (serverless
@@ -119,10 +150,12 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }, // newest first (the table can re-sort)
       include: {
         // >> JOIN: each ticket comes with its notes array nested inside it,
-        //    so the view dialog never needs a second fetch
+        //    so the view dialog never needs a second fetch. assignee is the
+        //    org member the ticket is assigned to (null = shared queue).
         notes: {
           orderBy: { createdAt: 'desc' },
         },
+        assignee: { select: { id: true, name: true, email: true, image: true } },
       },
     })
 

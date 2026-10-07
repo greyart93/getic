@@ -198,6 +198,11 @@ const compositionChartConfig = {
     closed: { label: "Closed", color: STATUS_COLORS['CLOSED'] },
 } satisfies ChartConfig
 
+// 👇 localStorage key for the dashboard's day-range selector (7 | 14 | 30).
+//    The choice survives navigation and full reloads — see the timeRange
+//    state below for how it's restored without hydration warnings.
+const RANGE_KEY = "getic-dashboard-range"
+
 // Recharts tooltip fallback (used only by the radial gauge, whose value
 // lives outside the standard series shape).
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -225,16 +230,41 @@ export default function DashboardPage() {
     const [isClient, setIsClient] = useState(false)
     // 👇 Time-range selector (shadcn dashboard example): how many calendar
     //    days the two daily charts (Ticket Growth, Workload Composition) show.
+    //    PERSISTED LOCALLY: the choice survives navigation and reloads.
+    //    The restore deliberately happens in the range effect's FIRST run
+    //    (not in the useState initializer): the hydration render must match
+    //    the server (always 14), and — because charts only mount after
+    //    isClient — by the time they do, timeRange is already the saved one.
+    //    A user never sees the default flash, and no hydration mismatch.
     const [timeRange, setTimeRange] = useState<7 | 14 | 30>(14)
     // 👇 Chart morph animation: ON for ~1s after a day-range change, off
     //    otherwise (mount stays static — see the NO_ANIM comment). A ref
-    //    skips the very first render so opening the dashboard never animates.
+    //    skips the very first render so opening the dashboard never animates;
+    //    restoring the saved range is silent too (it's not a user switch).
     const [animateCharts, setAnimateCharts] = useState(false)
     const firstRange = useRef(true)
+    const suppressAnim = useRef(false)
     useEffect(() => {
         if (firstRange.current) {
             firstRange.current = false
+            // first run = mount: restore the saved choice BEFORE any write —
+            // persisting first would clobber the stored value with the
+            // default 14 before it is ever read (this exact bug shipped once).
+            try {
+                const saved = Number(window.localStorage.getItem(RANGE_KEY))
+                if (saved === 7 || saved === 30) {
+                    suppressAnim.current = true
+                    setTimeRange(saved as 7 | 14 | 30)
+                }
+            } catch { /* storage unavailable */ }
             return
+        }
+        // persist every user switch (the restored value re-writes itself —
+        // same value, harmless)
+        try { localStorage.setItem(RANGE_KEY, String(timeRange)) } catch { /* storage unavailable */ }
+        if (suppressAnim.current) {
+            suppressAnim.current = false
+            return // the restored value just landed — not a user switch, no morph
         }
         setAnimateCharts(true)
         const t = setTimeout(() => setAnimateCharts(false), 1000)

@@ -9,19 +9,24 @@
 // Routing after sign-in: default /tickets (the desk). LayoutClient's org
 // gate forwards users with no workspace to /welcome (create or join), and
 // pending invitations surface on /notifications and /welcome — flow C/D.
+//
+// >> SUSPENSE: this page prerenders statically, and useSearchParams() can't
+//    run during prerendering. Per the Next.js docs, the component that calls
+//    it sits inside a <Suspense> boundary; the shell above is prerendered,
+//    the form itself client-renders in place of the fallback.
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2 } from "lucide-react"
+import { Loader2, LoaderCircle } from "lucide-react"
 import { ThemeToggle } from "@/components/ui/toggle-theme"
 import Link from "next/link"
 import Image from "next/image"
 
-export default function LoginPage() {
+function LoginPage() {
     const router = useRouter()
     const search = useSearchParams()
     const next = search.get("next") || "/tickets"
@@ -157,6 +162,44 @@ export default function LoginPage() {
                         </p>
                     </div>
                 </div>
+            </div>
+        </main>
+    )
+}
+
+// Static shell prerendered at build time; the form (which reads ?next=)
+// client-renders in its place during hydration.
+export default function LoginPageWrap() {
+    return (
+        <Suspense fallback={<LoginShellFallback />}>
+            <LoginPage />
+        </Suspense>
+    )
+}
+
+// Prerendered placeholder matching the page's split-screen layout: the brand
+// panel shows instantly; the form side holds a soft spinner until hydration.
+function LoginShellFallback() {
+    return (
+        <main className="min-h-[100svh] flex bg-background text-foreground landing-pattern">
+            <div className="fixed top-4 right-4 z-20">
+                <ThemeToggle />
+            </div>
+            <aside className="relative hidden lg:flex flex-col justify-between w-[46%] max-w-xl p-10 border-r border-border/60 bg-muted/30 overflow-hidden">
+                <div aria-hidden className="absolute inset-0 bg-dots" style={{ maskImage: "radial-gradient(70% 70% at 50% 40%, black 30%, transparent 100%)", WebkitMaskImage: "radial-gradient(70% 70% at 50% 40%, black 30%, transparent 100%)" }} />
+                <div aria-hidden className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
+                <div aria-hidden className="absolute bottom-0 -right-24 h-80 w-80 rounded-full bg-primary/8 blur-3xl" />
+                <div className="relative">
+                    <Link href="/" className="inline-flex items-center gap-2">
+                        <Image src="/icon.webp" alt="Getic" width={2000} height={562} className="h-7 w-auto logo-invert" priority />
+                    </Link>
+                </div>
+                <p className="relative text-xs text-muted-foreground">
+                    Free during beta · no credit card · <span className="landing-bracket">[ GETIC ]</span>
+                </p>
+            </aside>
+            <div className="relative flex-1 flex items-center justify-center p-4">
+                <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
         </main>
     )

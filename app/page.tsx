@@ -16,7 +16,8 @@
 //   - Who-it's-for: 3D tilt + cursor spotlight (.tilt-card), no arrow.
 //   - How-it-works: auto-advancing demo carousel; the workflow mock shows
 //     the REAL pipeline (Open -> In Progress -> Closed + customer email on
-//     every status change). The app has no assignees, so none are shown.
+//     every status change), and every slide animates only while on screen.
+//     The carousel advances only after the current mock finished its story.
 //   - Testimonials: two-row infinite marquee, pauses on hover.
 //   - Navbar: glassmorphism bar; becomes a floating pill after leaving the
 //     top; HIDES while scrolling down once the features section is reached,
@@ -252,7 +253,7 @@ const FEATURES = [
     {
         icon: <Ticket className="h-5 w-5" />,
         title: "Tickets that flow",
-        desc: "Open, In Progress, Closed - with inline notes, a faceted filter bar, bulk actions and customer emails on every status change.",
+        desc: "Open, In Progress, Closed - with priorities, assignees, inline notes, a faceted filter bar, bulk actions and customer emails on every status change.",
         tag: "Workflow",
     },
     {
@@ -290,7 +291,7 @@ const WHO = [
 const ADVANTAGES = [
     { us: "Rooms with hard server-side isolation", them: "Shared tables with client-side filters" },
     { us: "Join by invite link or room ID + password", them: "Admins manually create every account" },
-    { us: "Role changes with email notifications", them: "Silent permission edits" },
+    { us: "Priorities, assignees and role changes with email", them: "Silent permission edits" },
     { us: "Live team presence built in", them: "No idea who is working" },
     { us: "Eight analytics charts out of the box", them: "Analytics as a paid add-on" },
     { us: "Instant client-side filtering at any size", them: "A spinner on every page load" },
@@ -350,16 +351,22 @@ const DEMO_STEPS = [
 ]
 
 // The REAL ticket pipeline: statuses + customer email on every change.
-// (The app has no assignees - agents pick tickets from the shared queue -
-// so the mock deliberately shows statuses, not "assigned to".)
+// (Priority + assignee are set from the ticket form/table; the mock keeps
+// the focus on the status flow - the one thing that never varies.)
+// STORY-COMPLETE SIGNALING: each mock now reports when its story has run
+// once (onCycleComplete) and the carousel waits for that signal before
+// sliding on - the animation is never cut short by the timer again. The
+// loop stays LIVE: while the slide is on screen the story repeats (and
+// re-reports), so pausing on hover and resuming later still works.
 // LIVE LOOP, VISIBILITY-GATED: the sequence only runs while the slide is on
 // screen, and it RESTARTS from stage 0 every time it re-enters the viewport -
 // a visitor who scrolls to it always sees the full story from the beginning,
 // never a mid-flight state. The active stage lights up, its connector's dashes
 // flow to the next stage, the stage "lands" and the mail line pings
 // (customer emailed). Wrapping 2 -> 0 reads as the next ticket entering the
-// pipeline.
-function MockWorkflow() {
+// pipeline - and that wrap is exactly the "story complete" moment reported
+// to the carousel.
+function MockWorkflow({ onCycleComplete }: { onCycleComplete?: () => void }) {
     const stages = [
         { label: "TKT-118", status: "Open", tone: "text-blue-500" },
         { label: "Agent working", status: "In Progress", tone: "text-amber-500" },
@@ -380,10 +387,15 @@ function MockWorkflow() {
         }
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             setActive(-1)
-            return
+            // still report completion so the carousel can move on
+            const t = setTimeout(() => onCycleComplete?.(), 2500)
+            return () => clearTimeout(t)
         }
         let alive = true
         let timer: ReturnType<typeof setTimeout>
+        // 👇 local stage counter (closures can't read fresh state, and putting
+        //    the side effect inside a setState updater would be impure)
+        let stage = 0
         const dwell = () => {
             if (!alive) return
             setFlowing(false)
@@ -394,8 +406,12 @@ function MockWorkflow() {
             setFlowing(true)
             timer = setTimeout(() => {
                 if (!alive) return
-                setActive((a) => (a + 1) % stages.length)
+                stage = (stage + 1) % stages.length
+                setActive(stage)
                 setPingKey((k) => k + 1)
+                // 👇 wrapping 2 -> 0 = one full story told: tell the carousel
+                //    it may advance to the next slide now
+                if (stage === 0) onCycleComplete?.()
                 dwell()
             }, 1500)
         }
@@ -441,8 +457,9 @@ function MockWorkflow() {
 // LIVE LOOP (same feel as the queue mock), visibility-gated: while the slide
 // is watched, the third invite flips from "Invited" to "Joined" with a green
 // flash, then the cycle repeats — a new seat joining the room. Leaving the
-// slide resets it, so re-entry always shows the join happening live.
-function MockInvites() {
+// slide resets it, so re-entry always shows the join happening live. Each
+// "Joined" landing is reported to the carousel (story complete).
+function MockInvites({ onCycleComplete }: { onCycleComplete?: () => void }) {
     const base = [
         { n: "Priya Sharma", e: "priya@agency.co", r: "AGENT" },
         { n: "Daniel Okafor", e: "daniel@saas.io", r: "AGENT" },
@@ -459,13 +476,23 @@ function MockInvites() {
         }
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             setAccepted(true)
-            return
+            const t = setTimeout(() => onCycleComplete?.(), 2500)
+            return () => clearTimeout(t)
         }
         let alive = true
         let timer: ReturnType<typeof setTimeout>
+        // 👇 local flip state + separate handle for the completion ping, so
+        //    cleanup clears the repeat timer and the report timer can't leak
+        let accepted = false
         const cycle = () => {
             if (!alive) return
-            setAccepted((v) => !v)
+            accepted = !accepted
+            setAccepted(accepted)
+            if (accepted) {
+                // 👇 landing on "Joined" = the story beat is done; give the
+                //    green flash ~0.9s to register before reporting
+                setTimeout(() => alive && onCycleComplete?.(), 900)
+            }
             timer = setTimeout(cycle, 2400)
         }
         timer = setTimeout(cycle, 1200)
@@ -473,6 +500,7 @@ function MockInvites() {
             alive = false
             clearTimeout(timer)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inView])
 
     const rows = base.map((m, i) => ({ ...m, s: i < 2 || accepted ? "Joined" : "Invited" }))
@@ -506,9 +534,21 @@ function MockInvites() {
 
 // The live-queue ticker only scrolls while the slide is on screen
 // (.mock-paused freezes it off-screen, so nothing animates unseen).
-function MockAnalytics() {
+// Unlike the other two mocks the ticker has no natural end, so "story
+// complete" is a bounded watch window (~5.5s of live queue), after which
+// the carousel is told it may advance. Repeats while the slide is watched.
+function MockAnalytics({ onCycleComplete }: { onCycleComplete?: () => void }) {
     const rootRef = useRef<HTMLDivElement>(null)
     const inView = useInView(rootRef, 0.25)
+
+    useEffect(() => {
+        if (!inView) return
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        const t = setTimeout(() => onCycleComplete?.(), reduced ? 2500 : 5500)
+        return () => clearTimeout(t)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inView])
+
     const lines = [
         "TKT-112 · resolved · 4m", "TKT-113 · opened · billing", "TKT-114 · resolved · 2m",
         "TKT-115 · note added", "TKT-116 · opened · bug", "TKT-117 · resolved · 9m",
@@ -540,8 +580,6 @@ function MockAnalytics() {
         </div>
     )
 }
-
-const DEMO_MOCKS = [<MockWorkflow key="w" />, <MockInvites key="i" />, <MockAnalytics key="a" />]
 
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
     return (
@@ -642,12 +680,29 @@ export default function LandingPage() {
         }
     }, [menuOpen])
 
-    // ── Demo carousel (GSAP slide animation, auto-advancing) ──
+    // ── Demo carousel (GSAP slides, STORY-DRIVEN auto-advance) ──────────
+    // The old version advanced on a fixed 7s timer, which regularly cut a
+    // mock's animation in half ("cards animation is still going but it moves
+    // to the next one"). Now every mock reports when its story has run once
+    // (onCycleComplete), and only THEN does the carousel slide on — plus a
+    // short beat so the final frame registers. Since a mock only runs while
+    // its slide is on screen, the whole thing is also view-gated: scroll
+    // away and the story waits; scroll back and it restarts from the top.
+    // Manual arrows/step buttons still work any time; hover still pauses.
     const viewportRef = useRef<HTMLDivElement>(null)
     const innerRef = useRef<HTMLDivElement>(null)
     const idx = useRef(0)
     const hover = useRef(false)
     const [slide, setSlide] = useState(0)
+    // 👇 per-slide "story finished at least once" flags (ref mirror — callbacks
+    //    must read fresh values without re-subscribing effects)
+    const doneRef = useRef<boolean[]>(DEMO_STEPS.map(() => false))
+    const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pendingAdvance = useRef(false)
+
+    // Beat between "mock done" and the slide moving on: lets the last frame
+    // (the email ping, the green "Joined" flash) actually register.
+    const ADVANCE_DELAY = 1200
 
     const go = useCallback((n: number) => {
         const vp = viewportRef.current
@@ -655,26 +710,74 @@ export default function LandingPage() {
         const next = ((n % DEMO_STEPS.length) + DEMO_STEPS.length) % DEMO_STEPS.length
         idx.current = next
         setSlide(next)
+        // 👇 a slide's story is watched FRESH each time it becomes current:
+        //    clear its done flag and any scheduled advance from the last visit
+        doneRef.current[next] = false
+        if (advanceTimer.current) {
+            clearTimeout(advanceTimer.current)
+            advanceTimer.current = null
+        }
+        pendingAdvance.current = false
         const x = -next * vp.clientWidth
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
         if (reduce) gsap.set(innerRef.current, { x })
         else gsap.to(innerRef.current, { x, duration: 0.85, ease: "power3.inOut", overwrite: true })
     }, [])
 
+    const scheduleAdvance = useCallback(() => {
+        if (advanceTimer.current) return // already counting down
+        advanceTimer.current = setTimeout(() => {
+            advanceTimer.current = null
+            if (hover.current) {
+                // paused mid-beat: remember it and move when the pointer leaves
+                pendingAdvance.current = true
+                return
+            }
+            go(idx.current + 1)
+        }, ADVANCE_DELAY)
+    }, [go])
+
+    // 👇 The signal every mock sends when its story completes one full run.
+    //    Late signals from a slide that just lost focus (parking clears its
+    //    timers a beat later) are dropped — only the CURRENT slide may
+    //    schedule the advance.
+    const handleCycleComplete = useCallback((i: number) => {
+        if (i !== idx.current) return
+        doneRef.current[i] = true
+        scheduleAdvance()
+    }, [scheduleAdvance])
+
     useEffect(() => {
-        const t = setInterval(() => {
-            if (!hover.current) go(idx.current + 1)
-        }, 7000)
         const onResize = () => {
             const vp = viewportRef.current
             if (vp) gsap.set(innerRef.current, { x: -idx.current * vp.clientWidth })
         }
         window.addEventListener("resize", onResize)
         return () => {
-            clearInterval(t)
             window.removeEventListener("resize", onResize)
+            if (advanceTimer.current) clearTimeout(advanceTimer.current)
         }
-    }, [go])
+    }, [])
+
+    // Leaving after the story already completed while hovered: advance now
+    // instead of waiting for the mock's next full cycle.
+    const handleViewportLeave = () => {
+        hover.current = false
+        if (pendingAdvance.current && !advanceTimer.current) {
+            pendingAdvance.current = false
+            go(idx.current + 1)
+        }
+    }
+
+    // 👇 Built per render so each mock gets its completion callback (React
+    //    keeps the same instances across renders — same keys, same slots —
+    //    so mock state is never reset by re-renders). The callbacks are
+    //    stable (useCallback), so re-passing them never restarts a story.
+    const demoMocks = [
+        <MockWorkflow key="w" onCycleComplete={() => handleCycleComplete(0)} />,
+        <MockInvites key="i" onCycleComplete={() => handleCycleComplete(1)} />,
+        <MockAnalytics key="a" onCycleComplete={() => handleCycleComplete(2)} />,
+    ]
 
     // Glass surfaces: high transparency + blur + saturation. In dark mode
     // borders brighten (white/15) so the pill/panel edges stay visible.
@@ -888,10 +991,10 @@ export default function LandingPage() {
                         ref={viewportRef}
                         className="carousel-viewport border border-border/60 bg-card shadow-sm"
                         onMouseEnter={() => { hover.current = true }}
-                        onMouseLeave={() => { hover.current = false }}
+                        onMouseLeave={handleViewportLeave}
                     >
                         <div ref={innerRef} className="carousel-inner">
-                            {DEMO_MOCKS.map((mock, i) => (
+                            {demoMocks.map((mock, i) => (
                                 <div key={i} className="carousel-slide">
                                     <div className="flex items-center gap-2 border-b border-border/40 px-4 py-2.5">
                                         <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />

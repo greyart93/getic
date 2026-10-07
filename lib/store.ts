@@ -90,6 +90,8 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
           customerName: ticketData.customerName,
           customerEmail: ticketData.customerEmail,
           description: ticketData.description || 'Created from UI',
+          priority: ticketData.priority,      // 👈 optional; API defaults to MEDIUM
+          assigneeId: ticketData.assigneeId,  // 👈 optional; null = shared queue
         }),
       })
       if (!res.ok) throw new Error('Failed to create ticket')

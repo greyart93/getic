@@ -31,6 +31,7 @@ export type ActivityType =
     | "ROLE_CHANGED"
     | "MEMBER_REMOVED"
     | "TICKET_CREATED"
+    | "TICKET_ASSIGNED"
     | "STATUS_CHANGED"
     | "NOTE_ADDED";
 

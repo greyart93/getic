@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { MessageSquare, Calendar, User, Mail, Hash, Clock, Plus, Send } from "lucide-react"
+import { MessageSquare, Calendar, User, Mail, Hash, Clock, Plus, Send, Flag, UserCheck } from "lucide-react"
 import { formatDate, formatDateTime } from "@/lib/datetime"
 
 interface TicketViewDialogProps {
@@ -122,6 +122,24 @@ export function TicketViewDialog({
             <div>
               <p className="text-xs text-muted-foreground font-medium">Customer Email</p>
               <p className="font-semibold truncate">{ticket.customerEmail}</p>
+            </div>
+          </div>
+
+          {/* 👇 Priority badge reuses the table's tint mapping (columns.tsx) */}
+          <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-card/50">
+            <Flag className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">Priority</p>
+              <p className="font-semibold">{ticket.priority ?? "MEDIUM"}</p>
+            </div>
+          </div>
+
+          {/* 👇 Assignee: the org member on it, or the shared queue */}
+          <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-card/50">
+            <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">Assignee</p>
+              <p className="font-semibold truncate">{ticket.assignee?.name ?? ticket.assignee?.email ?? "Unassigned"}</p>
             </div>
           </div>
 

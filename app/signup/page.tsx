@@ -13,7 +13,7 @@
 // New accounts join as AGENT (admin plugin defaultRole) — becoming ADMIN is
 // an explicit admin action, never a self-service option.
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -31,7 +31,7 @@ const STAGES = [
     "Almost there",
 ]
 
-export default function SignupPage() {
+function SignupPage() {
     const router = useRouter()
     const search = useSearchParams()
     // >> Default destination after sign-up: the desk. LayoutClient's org
@@ -184,6 +184,42 @@ export default function SignupPage() {
                         </div>
                     </div>
                 )}
+            </div>
+        </main>
+    )
+}
+
+// Static shell prerendered at build time; the form (which reads ?next=)
+// client-renders in its place during hydration. Same shape as /login's shell.
+export default function SignupPageWrap() {
+    return (
+        <Suspense fallback={<SignupShellFallback />}>
+            <SignupPage />
+        </Suspense>
+    )
+}
+
+function SignupShellFallback() {
+    return (
+        <main className="min-h-[100svh] flex bg-background text-foreground landing-pattern">
+            <div className="fixed top-4 right-4 z-20">
+                <ThemeToggle />
+            </div>
+            <aside className="relative hidden lg:flex flex-col justify-between w-[46%] max-w-xl p-10 border-r border-border/60 bg-muted/30 overflow-hidden">
+                <div aria-hidden className="absolute inset-0 bg-dots" style={{ maskImage: "radial-gradient(70% 70% at 50% 40%, black 30%, transparent 100%)", WebkitMaskImage: "radial-gradient(70% 70% at 50% 40%, black 30%, transparent 100%)" }} />
+                <div aria-hidden className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
+                <div aria-hidden className="absolute bottom-0 -right-24 h-80 w-80 rounded-full bg-primary/8 blur-3xl" />
+                <div className="relative">
+                    <Link href="/" className="inline-flex items-center gap-2">
+                        <Image src="/icon.webp" alt="Getic" width={2000} height={562} className="h-7 w-auto logo-invert" priority />
+                    </Link>
+                </div>
+                <p className="relative text-xs text-muted-foreground">
+                    Free during beta · no credit card · <span className="landing-bracket">[ GETIC ]</span>
+                </p>
+            </aside>
+            <div className="relative flex-1 flex items-center justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
         </main>
     )

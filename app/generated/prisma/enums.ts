@@ -18,6 +18,16 @@ export const Status = {
 export type Status = (typeof Status)[keyof typeof Status]
 
 
+export const Priority = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  URGENT: 'URGENT'
+} as const
+
+export type Priority = (typeof Priority)[keyof typeof Priority]
+
+
 export const ActivityType = {
   INVITE_SENT: 'INVITE_SENT',
   INVITE_ACCEPTED: 'INVITE_ACCEPTED',
@@ -27,6 +37,7 @@ export const ActivityType = {
   ROLE_CHANGED: 'ROLE_CHANGED',
   MEMBER_REMOVED: 'MEMBER_REMOVED',
   TICKET_CREATED: 'TICKET_CREATED',
+  TICKET_ASSIGNED: 'TICKET_ASSIGNED',
   STATUS_CHANGED: 'STATUS_CHANGED',
   NOTE_ADDED: 'NOTE_ADDED'
 } as const

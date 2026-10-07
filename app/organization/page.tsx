@@ -18,7 +18,7 @@
 // /api/org/join/preview, which returns them exclusively on correct
 // code+password. Wrong credentials = generic "Room not found" (no probing).
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { authClient, useSession } from "@/lib/auth-client"
@@ -59,7 +59,7 @@ type RoomPreview = {
     alreadyMember: boolean
 }
 
-export default function OrganizationPage() {
+function OrganizationPage() {
     const router = useRouter()
     const search = useSearchParams()
     const inviteId = search.get("invite")
@@ -779,5 +779,19 @@ export default function OrganizationPage() {
                 </div>
             </main>
         </LayoutClient>
+    )
+}
+
+// Static shell prerendered at build time; the page (which reads ?invite= for
+// deep-link invitations) client-renders in its place during hydration.
+export default function OrganizationPageWrap() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-[100svh] flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+        }>
+            <OrganizationPage />
+        </Suspense>
     )
 }

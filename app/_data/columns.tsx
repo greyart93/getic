@@ -3,6 +3,18 @@
 import React from "react" 
 import { createColumnHelper } from "@tanstack/react-table"
 import type { Ticket } from "./tempdata.js";
+
+// 👇 PRIORITY: sorting must follow the DECLARED rank (LOW < MEDIUM < HIGH
+//    < URGENT), not the alphabet — so the accessor maps each value to its
+//    rank number and the cell maps the rank back to the label. Unset
+//    (legacy/mock rows) behaves as MEDIUM, the DB default.
+const PRIORITY_ORDER = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const
+const PRIORITY_STYLES: Record<string, string> = {
+  LOW: "bg-muted text-muted-foreground",
+  MEDIUM: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  HIGH: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  URGENT: "bg-red-500/15 text-red-600 dark:text-red-400",
+}
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
@@ -18,8 +30,8 @@ import {
 import { type DataTableFeatures } from "./data-table-features";
 import { formatDate } from "@/lib/datetime";//
 // ─── TABLE COLUMN DEFINITIONS ────────────────────────────────────────────
-// Describes the 6 columns of the tickets table: ID, Subject, Customer,
-// Status, Date, Actions. TanStack Table v9 renders whatever these cells
+// Describes the 8 columns of the tickets table: ID, Subject, Customer,
+// Priority, Assignee, Status, Date, Actions. TanStack Table v9 renders whatever these cells
 // return, so each `cell` is a mini React component.
 //
 // HOW ACTIONS REACH THE OUTSIDE WORLD: cells can't call the zustand store
@@ -104,6 +116,54 @@ export const columns = columnHelper.columns([
         </div>
       )
     }
+  }),
+  // 👇 PRIORITY column: sorted by rank (see PRIORITY_ORDER above), shown as
+  //    a tinted badge. Centered like Status, which it visually pairs with.
+  columnHelper.accessor((row) => PRIORITY_ORDER.indexOf((row.priority ?? "MEDIUM") as any), {
+    id: "priority",
+    header: ({ column }) => (
+      <div className="flex justify-center">
+        <SortableHeader column={column} title="Priority" />
+      </div>
+    ),
+    cell: ({ getValue }) => {
+      const p = PRIORITY_ORDER[getValue()] ?? "MEDIUM";
+      return (
+        <div className="flex justify-center">
+          <Badge className={`rounded-full px-2 ${PRIORITY_STYLES[p]}`}>{p}</Badge>
+        </div>
+      );
+    },
+  }),
+
+  // 👇 ASSIGNEE column: the org member working this ticket, avatar + name.
+  //    null ("Unassigned") sorts first alphabetically and renders muted —
+  //    those are the tickets up for grabs in the shared queue.
+  columnHelper.accessor((row) => row.assignee?.name ?? row.assignee?.email ?? "", {
+    id: "assignee",
+    header: ({ column }) => <SortableHeader column={column} title="Assignee" />,
+    cell: ({ getValue, row }) => {
+      const name = getValue();
+      const image = row.original.assignee?.image;
+      if (!name) {
+        return <span className="text-xs text-muted-foreground">Unassigned</span>;
+      }
+      const initials = name
+        .split(" ")
+        .map((p) => p[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+      return (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Avatar className="h-6 w-6 shrink-0">
+            {image ? <AvatarImage src={image} alt={name} /> : null}
+            <AvatarFallback className="text-[9px]">{initials}</AvatarFallback>
+          </Avatar>
+          <span title={name} className="truncate min-w-0 text-xs">{name}</span>
+        </div>
+      );
+    },
   }),
   
   columnHelper.accessor("status", {

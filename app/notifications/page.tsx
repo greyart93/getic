@@ -25,7 +25,7 @@ import { toast } from "@/components/ui/toast"
 import { formatDateTime } from "@/lib/datetime"
 import {
     Loader2, Bell, Mail, UserPlus, ShieldCheck, UserMinus, Ticket as TicketIcon,
-    ArrowRightLeft, StickyNote, Building2, DoorOpen, Ban, Inbox,
+    ArrowRightLeft, StickyNote, Building2, DoorOpen, Ban, Inbox, UserCheck,
 } from "lucide-react"
 
 type FeedEvent = {
@@ -58,6 +58,7 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string }> = {
     ROLE_CHANGED: { icon: <ShieldCheck className="h-3.5 w-3.5" />, tint: "text-violet-500 bg-violet-500/10" },
     MEMBER_REMOVED: { icon: <UserMinus className="h-3.5 w-3.5" />, tint: "text-red-500 bg-red-500/10" },
     TICKET_CREATED: { icon: <TicketIcon className="h-3.5 w-3.5" />, tint: "text-blue-500 bg-blue-500/10" },
+    TICKET_ASSIGNED: { icon: <UserCheck className="h-3.5 w-3.5" />, tint: "text-cyan-500 bg-cyan-500/10" },
     STATUS_CHANGED: { icon: <ArrowRightLeft className="h-3.5 w-3.5" />, tint: "text-amber-500 bg-amber-500/10" },
     NOTE_ADDED: { icon: <StickyNote className="h-3.5 w-3.5" />, tint: "text-slate-500 bg-slate-500/10" },
 }

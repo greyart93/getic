@@ -1288,8 +1288,10 @@ export const TicketScalarFieldEnum = {
   subject: 'subject',
   description: 'description',
   status: 'status',
+  priority: 'priority',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
+  assigneeId: 'assigneeId',
   organizationId: 'organizationId'
 } as const
 
@@ -1501,6 +1503,20 @@ export type EnumStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaMod
  * Reference to a field of type 'Status[]'
  */
 export type ListEnumStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Status[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Priority'
+ */
+export type EnumPriorityFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Priority'>
+    
+
+
+/**
+ * Reference to a field of type 'Priority[]'
+ */
+export type ListEnumPriorityFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Priority[]'>
     
 
 

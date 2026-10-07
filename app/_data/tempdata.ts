@@ -18,6 +18,19 @@ export type Note = {
     createdAt?: string
 }
 
+// 👇 Matches the Prisma `Priority` enum (schema.prisma). Kept as a literal
+//    union here because the Ticket type is hand-written.
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+
+// 👇 The org member a ticket is assigned to, exactly as GET /api/tickets
+//    nests it (include: { assignee: { id, name, email, image } }).
+export type TicketAssignee = {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+}
+
 export type Ticket = {
     id: number
     ticketId: string
@@ -26,6 +39,9 @@ export type Ticket = {
     subject: string
     description: string
     status: 'OPEN' | 'IN PROGRESS' | 'CLOSED' | 'IN_PROGRESS'  // 👈 note both IN PROGRESS spellings; see PATCH normalization in app/api/tickets/[id]/route.ts
+    priority?: TicketPriority            // 👈 DB default MEDIUM; absent on legacy mock rows
+    assigneeId?: string | null           // 👈 userId of the org member, null = shared queue
+    assignee?: TicketAssignee | null     // 👈 nested user object for display (from the API include)
     date: string
     createdAt?: string
     updatedAt?: string

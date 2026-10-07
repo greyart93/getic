@@ -7,7 +7,7 @@
 // then sets the new password (one-hour token window). We do NOT auto sign-in
 // after reset - the user re-authenticates with the fresh credentials.
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,7 @@ import { Loader2 } from "lucide-react"
 import { ThemeToggle } from "@/components/ui/toggle-theme"
 import Link from "next/link"
 
-export default function ResetPasswordPage() {
+function ResetPasswordPage() {
     const router = useRouter()
     const search = useSearchParams()
     // >> The email callback forwards the token as ?token=; a missing or expired
@@ -114,5 +114,19 @@ export default function ResetPasswordPage() {
                 </CardContent>
             </Card>
         </main>
+    )
+}
+
+// Static shell prerendered at build time; the form (which reads ?token= and
+// ?error=) client-renders in its place during hydration.
+export default function ResetPasswordPageWrap() {
+    return (
+        <Suspense fallback={
+            <main className="min-h-[100svh] flex items-center justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </main>
+        }>
+            <ResetPasswordPage />
+        </Suspense>
     )
 }

@@ -61,6 +61,8 @@ const HEAD_WIDTHS: Record<string, string> = {
   select: "w-[44px]",
   ticketId: "w-[110px]",
   customerName: "w-[150px]",
+  priority: "w-[92px]",
+  assignee: "w-[130px]",
   status: "w-[130px]",
   date: "w-[115px]",
   actions: "w-[56px]",

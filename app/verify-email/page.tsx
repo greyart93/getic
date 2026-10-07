@@ -8,7 +8,7 @@
 // dev without SMTP_HOST), and emailOtp.verifyEmail flips User.emailVerified.
 // Error messages stay generic - never confirm whether an email is registered.
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,7 @@ import { Loader2, MailCheck } from "lucide-react"
 import { ThemeToggle } from "@/components/ui/toggle-theme"
 import Link from "next/link"
 
-export default function VerifyEmailPage() {
+function VerifyEmailPage() {
     const router = useRouter()
     const search = useSearchParams()
     const email = search.get("email") ?? ""
@@ -129,5 +129,19 @@ export default function VerifyEmailPage() {
                 </CardContent>
             </Card>
         </main>
+    )
+}
+
+// Static shell prerendered at build time; the form (which reads ?email=)
+// client-renders in its place during hydration.
+export default function VerifyEmailPageWrap() {
+    return (
+        <Suspense fallback={
+            <main className="min-h-[100svh] flex items-center justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </main>
+        }>
+            <VerifyEmailPage />
+        </Suspense>
     )
 }

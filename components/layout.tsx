@@ -17,7 +17,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { ThemeToggle } from "./ui/toggle-theme";
 import NavBar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
-import { TicketFormDialog } from "@/components/ticket-form-dialog";
+import { TicketFormDialog, type TicketFormValues } from "@/components/ticket-form-dialog";
 import { useTicketStore } from "@/lib/store";
 import { AuthGate } from "@/components/auth-gate";
 import { UserMenu } from "@/components/user-menu";
@@ -73,7 +73,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
 
   // Create flow: addTicket owns loading/success/error toasts inside the store;
   // we only close the dialog on success (addTicket throws on failure).
-  const handleCreateTicket = async (data: { subject: string; customerName: string; customerEmail: string; description: string }) => {
+  const handleCreateTicket = async (data: TicketFormValues) => {
     try {
       await addTicket(data)
       setIsCreateDialogOpen(false)
