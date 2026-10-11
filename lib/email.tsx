@@ -1,19 +1,22 @@
 //
-// ─── EMAIL SENDER (SMTP via NODEMAILER) ─────────────────────────────────────
+// ─── EMAIL SENDER (RESEND HTTPS → SMTP → console) ───────────────────
 // The single send path for ALL app email:
 //   - Better Auth hooks (OTP verification / password reset) — lib/auth.ts
 //   - App notifications (ticket created / status changed) — ticket API routes
 //   - Product mail (welcome on first sign-in, org invites) — misc routes
 //
 // TEMPLATES: React components in `emails/` (react-email v6), rendered to HTML
-// with `render()`. Preview them live: `pnpm email:dev`. SMTP creds are plain
-// env vars — Gmail (App Password), Brevo, Mailgun, SES, Ethereal (dev) all
-// speak SMTP, so there is no vendor SDK or API-key logic anywhere here.
+// with `render()`. Preview them live: `pnpm email:dev`.
 //
-// GRACEFUL DEGRADATION: without SMTP_HOST the sender logs the mail to the
-// server console instead of failing — auth flows and ticket mutations keep
-// working locally and in preview deploys. Production sets the vars; the
-// Settings page's "Send test email" proves the chain end-to-end.
+// RAILS:
+//   1. RESEND_API_KEY → Resend HTTPS API (recommended on Vercel: raw
+//      outbound SMTP is blocked on serverless, so SMTP creds alone fail
+//      silently there). Plain fetch — no SDK dependency.
+//   2. SMTP_*         → Nodemailer/SMTP (dev, self-host, Gmail App Password,
+//      Brevo, Mailgun, SES, Ethereal… no vendor-specific logic).
+//   3. Neither        → log to console instead of failing, so auth flows and
+//      ticket mutations keep working; the Settings page's "Send test email"
+//      proves the chain end-to-end.
 
 import { render } from "react-email";
 import nodemailer, { type Transporter } from "nodemailer";
@@ -25,8 +28,9 @@ import ResetPasswordEmail, { resetPasswordSubject } from "@/emails/reset-passwor
 import InviteEmail, { inviteSubject } from "@/emails/invite";
 import PromotedEmail, { promotedSubject } from "@/emails/promoted";
 
-// ── TRANSPORT (lazy — `pnpm dev` without SMTP config must never throw here) ──
+// ── TRANSPORTS (lazy — `pnpm dev` without any mail config must never throw) ──
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY?.trim();
 const SMTP_HOST = process.env.SMTP_HOST?.trim();
 const SMTP_PORT = Number(process.env.SMTP_PORT?.trim() || 587);
 const SMTP_USER = process.env.SMTP_USER?.trim();
@@ -38,7 +42,7 @@ const SMTP_SECURE = process.env.SMTP_SECURE?.trim()
 let transporter: Transporter | null = null;
 function mailer(): Transporter | null {
     if (transporter) return transporter;
-    if (!SMTP_HOST) return null; // dev mode: send() logs instead of sending
+    if (!SMTP_HOST) return null; // no SMTP: fall through to console logging
     transporter = nodemailer.createTransport({
         host: SMTP_HOST,
         port: SMTP_PORT,
@@ -56,7 +60,11 @@ const FROM = process.env.EMAIL_FROM?.trim() || "Getic <noreply@getic.local>";
 /**
  * Fire-and-forget core: ALWAYS resolves (never throws), so an email outage
  * can never break an auth flow or a ticket mutation. Returns whether the
- * mail was actually handed to SMTP (false = dev-only console log).
+ * mail was actually handed to a provider (false = dev-only console log).
+ *
+ * Order: Resend HTTPS → SMTP → console. Each falls through only when its
+ * config is absent — a configured provider that ERRORS still logs the error
+ * and returns false (never throws, never silently "succeeds").
  */
 async function sendEmail(
     to: string,
@@ -64,15 +72,6 @@ async function sendEmail(
     html: string,
     opts?: { fromName?: string; replyTo?: string }
 ): Promise<boolean> {
-    const transport = mailer();
-    if (!transport) {
-        console.log(
-            `[email:dev-only] To: ${to} | Subject: ${subject}` +
-            (opts?.replyTo ? ` | Reply-To: ${opts.replyTo}` : "") +
-            "\n"
-        );
-        return false;
-    }
     // Display From: "Admin Name via Getic <EMAIL_FROM-address>" - shows the
     // sending human while keeping the authenticated domain (deliverability).
     let from = FROM;
@@ -80,19 +79,62 @@ async function sendEmail(
         const addr = FROM.includes("<") ? FROM.slice(FROM.indexOf("<") + 1, FROM.lastIndexOf(">")) : FROM;
         from = `${opts.fromName} via Getic <${addr}>`;
     }
-    try {
-        await transport.sendMail({
-            from,
-            to,
-            subject,
-            html,
-            ...(opts?.replyTo ? { replyTo: opts.replyTo } : {}),
-        });
-        return true;
-    } catch (err) {
-        console.error("[email] SMTP send failed:", err);
-        return false;
+
+    // ── 1. RESEND (HTTPS API — the Vercel-safe path) ──
+    // POST https://api.resend.com/emails — plain fetch, no SDK, runs on the
+    // Node runtime with zero extra deps. resend.com custom 401/422 errors are
+    // surfaced verbatim so the test-email route shows WHY a send failed.
+    if (RESEND_API_KEY) {
+        try {
+            const res = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${RESEND_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    from,
+                    to: [to],
+                    subject,
+                    html,
+                    ...(opts?.replyTo ? { reply_to: opts.replyTo } : {}),
+                }),
+            });
+            if (res.ok) return true;
+            const body = await res.text();
+            console.error(`[email] Resend API ${res.status}:`, body);
+            return false;
+        } catch (err) {
+            console.error("[email] Resend fetch failed:", err);
+            return false;
+        }
     }
+
+    // ── 2. SMTP (Nodemailer — dev / self-host with egress) ──
+    const transport = mailer();
+    if (transport) {
+        try {
+            await transport.sendMail({
+                from,
+                to,
+                subject,
+                html,
+                ...(opts?.replyTo ? { replyTo: opts.replyTo } : {}),
+            });
+            return true;
+        } catch (err) {
+            console.error("[email] SMTP send failed:", err);
+            return false;
+        }
+    }
+
+    // ── 3. NOTHING CONFIGURED → dev-only console log ──
+    console.log(
+        `[email:dev-only] To: ${to} | Subject: ${subject}` +
+        (opts?.replyTo ? ` | Reply-To: ${opts.replyTo}` : "") +
+        "\n"
+    );
+    return false;
 }
 
 // ── APP NOTIFICATIONS (ticket routes) ──
